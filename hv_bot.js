@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const readline = require('readline');
+const setTimeout = require('node:timers/promises');
 
 // Create interface for user input
 const rl = readline.createInterface({
@@ -16,7 +17,7 @@ function getUserInput(question) {
   });
 }
 
-// Function to get password input (hidden)
+// Function to get password input (completely hidden)
 function getPasswordInput(question) {
   return new Promise((resolve) => {
     process.stdout.write(question);
@@ -25,7 +26,7 @@ function getPasswordInput(question) {
     process.stdin.setEncoding('utf8');
     
     let password = '';
-    process.stdin.on('data', function(ch) {
+    const listener = function(ch) {
       ch = ch + '';
       
       switch(ch) {
@@ -34,6 +35,7 @@ function getPasswordInput(question) {
         case '\u0004':
           process.stdin.setRawMode(false);
           process.stdin.pause();
+          process.stdin.removeListener('data', listener);
           process.stdout.write('\n');
           resolve(password);
           break;
@@ -43,15 +45,15 @@ function getPasswordInput(question) {
         case '\u007f': // backspace
           if (password.length > 0) {
             password = password.slice(0, -1);
-            process.stdout.write('\b \b');
           }
           break;
         default:
           password += ch;
-          process.stdout.write('*');
           break;
       }
-    });
+    };
+    
+    process.stdin.on('data', listener);
   });
 }
 
@@ -66,9 +68,9 @@ async function runForumBot() {
     const username = await getUserInput('Enter your username: ');
     const password = await getPasswordInput('Enter your password: ');
     
-    console.log('\nLaunching browser...');
+    console.log('\n🚀 Launching browser...');
     browser = await puppeteer.launch({ 
-      headless: true, // Set to true if you don't want to see the browser
+      headless: false, // Set to true if you don't want to see the browser
       defaultViewport: null 
     });
     
@@ -103,9 +105,9 @@ async function runForumBot() {
     // Check if login was successful
     const currentUrl = page.url();
     if (currentUrl.includes('foorum.hinnavaatlus.ee') || !currentUrl.includes('login')) {
-      console.log('Login successful!');
+      console.log('✅ Login successful!');
     } else {
-      console.log('Login failed - still on login page');
+      console.log('❌ Login failed - still on login page');
       return;
     }
     
@@ -116,114 +118,223 @@ async function runForumBot() {
     // Wait for the posts page to load
     await page.waitForSelector('table', { timeout: 10000 });
     
-    // Find all posts made by the user
-    console.log('Finding your posts...');
-    const userPosts = await page.evaluate((username) => {
-      const posts = [];
-      const rows = document.querySelectorAll('table tr');
+    // Find threads where both Author and Last Post are by you
+    console.log('Finding threads where you are both author and last poster...');
+    const threadsToEdit = await page.evaluate((username) => {
+      const threads = [];
+      const forumTable = document.querySelector('body > table > tbody > tr > td > table.forumline');
       
+      if (!forumTable) {
+        console.log('Forum table not found');
+        return threads;
+      }
+      
+      const rows = forumTable.querySelectorAll('tbody > tr');
+      console.log(`Found ${rows.length} rows in forum table`);
+      
+      // Process data rows (starting from row 4, index 3)
       rows.forEach((row, index) => {
-        // Look for posts by checking if the username appears in the row
-        const userCell = row.querySelector('td:nth-child(5)'); 
-        const titleCell = row.querySelector('td:nth-child(3) a');
+        // Skip header rows (first 3 rows: index 0, 1, 2)
+        if (index < 3) return;
         
-        if (userCell && titleCell && userCell.textContent.trim().includes(username)) {
-          posts.push({
-            title: titleCell.textContent.trim(),
-            link: titleCell.href,
-            rowIndex: index
-          });
+        try {
+          const cells = row.querySelectorAll('td');
+          if (cells.length < 7) return;
+          
+          // Get title cell - look for viewtopic.php link in early columns
+          let titleLink = null;
+          for (let i = 0; i < 4; i++) {
+            const link = cells[i] ? cells[i].querySelector('a[href*="viewtopic.php"]') : null;
+            if (link) {
+              titleLink = link;
+              break;
+            }
+          }
+          
+          if (!titleLink) return;
+          
+          // Get author from column 5 (td:nth-child(5) > span > a)
+          const authorCell = cells[4]; // 5th column = index 4
+          const authorLink = authorCell ? authorCell.querySelector('span > a') : null;
+          const authorText = authorLink ? authorLink.textContent.trim() : '';
+          
+          // Get last poster from column 7 (td:nth-child(7) > span > a:nth-child(2))
+          const lastPostCell = cells[6]; // 7th column = index 6
+          const lastPostLink = lastPostCell ? lastPostCell.querySelector('span > a:nth-child(2)') : null;
+          const lastPostText = lastPostLink ? lastPostLink.textContent.trim() : '';
+          
+          console.log(`Row ${index + 1}: Title="${titleLink.textContent.trim()}", Author="${authorText}", LastPoster="${lastPostText}"`);
+          
+          // Check if both author and last poster match the username
+          if (authorText === username && lastPostText === username) {
+            threads.push({
+              title: titleLink.textContent.trim(),
+              threadUrl: titleLink.href,
+              rowIndex: index + 1,
+              authorText: authorText,
+              lastPostText: lastPostText
+            });
+            console.log(`✅ Match found: "${titleLink.textContent.trim()}"`);
+          }
+        } catch (e) {
+          console.log(`Error processing row ${index + 1}:`, e.message);
         }
       });
       
-      return posts;
+      return threads;
     }, username);
     
-    if (userPosts.length === 0) {
-      console.log('No posts found by your username');
+    if (threadsToEdit.length === 0) {
+      console.log('No threads found where you are both author and last poster');
+      await page.screenshot({ path: 'no-threads-screenshot.jpg' });
       return;
     }
     
-    console.log(`Found ${userPosts.length} posts by ${username}`);
+    console.log(`Found ${threadsToEdit.length} threads to edit`);
+    await page.screenshot({ path: 'my-posts-page.jpg' });
     
-    // Process each post
-    for (let i = 0; i < userPosts.length; i++) {
-      const post = userPosts[i];
-      console.log(`\nProcessing post ${i + 1}/${userPosts.length}: "${post.title}"`);
+    // Process each thread
+    for (let i = 0; i < threadsToEdit.length; i++) {
+      const thread = threadsToEdit[i];
+      console.log(`\n📝 Processing thread ${i + 1}/${threadsToEdit.length}: "${thread.title}"`);
       
       try {
-        // Navigate to the post
-        await page.goto(post.link, { waitUntil: 'networkidle2' });
-
+        // Navigate to the thread
+        console.log('Opening thread...');
+        await page.goto(thread.threadUrl, { waitUntil: 'networkidle2' });
+        await page.screenshot({ path: `thread-${i + 1}.jpg` });
         
-        // Look for edit button - try multiple possible selectors
-        let editButton = null;
-        const editSelectors = [
-          'img[alt="muuda/kustuta postitus"]',
-          'a[href*="https://foorum.hinnavaatlus.ee/posting.php?mode=editpost&p="]',
-          'img[src*="icon_edit.gif"]',
-          'a img[alt*="muuda" i]'
+        // Find the last post by your username and get its edit link
+        console.log('Looking for your last post in the thread...');
+        const editUrl = await page.evaluate((username) => {
+          // Find all post rows in the thread
+          const postTables = document.querySelectorAll('table');
+          let lastEditUrl = null;
+          
+          // Look through all tables to find post tables
+          postTables.forEach(table => {
+            const rows = table.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+              // Look for rows that contain username and edit links
+              const rowText = row.textContent;
+              
+              if (rowText.includes(username)) {
+                // Look for edit link in this row or nearby rows
+                const editLink = row.querySelector('a[href*="posting.php?mode=editpost"]') ||
+                                row.querySelector('a[href*="mode=editpost"]');
+                
+                if (editLink) {
+                  lastEditUrl = editLink.href;
+                }
+                
+                // Also check next row for edit links (sometimes they're in the row below)
+                const nextRow = row.nextElementSibling;
+                if (nextRow) {
+                  const nextEditLink = nextRow.querySelector('a[href*="posting.php?mode=editpost"]') ||
+                                     nextRow.querySelector('a[href*="mode=editpost"]');
+                  if (nextEditLink) {
+                    lastEditUrl = nextEditLink.href;
+                  }
+                }
+              }
+            });
+          });
+          
+          return lastEditUrl;
+        }, username);
+        
+        if (!editUrl) {
+          console.log(`⚠️ Could not find edit link for your post in "${thread.title}" - skipping`);
+          await page.screenshot({ path: `no-edit-link-${i + 1}.jpg` });
+          continue;
+        }
+        
+        console.log('Found edit link, navigating to edit page...');
+        
+        // Navigate to edit page
+        await page.goto(editUrl, { waitUntil: 'networkidle2' });
+        await page.screenshot({ path: `edit-page-${i + 1}.jpg` });
+        
+        
+        // Look for save/submit button on edit page
+        console.log('Looking for save button...');
+        let saveButton = null;
+        const saveSelectors = [
+          'input[name="post"]',
+          'input[value*="Submit"]', 
+          'input[value*="Postita"]',
+          'input[value*="Salvesta"]',
+          'input[type="submit"]',
+          'button[type="submit"]'
         ];
         
-        for (const selector of editSelectors) {
+        for (const selector of saveSelectors) {
           try {
-            await page.waitForSelector(selector, { timeout: 3000 });
-            editButton = await page.$(selector);
-            if (editButton) break;
+            const buttons = await page.$$(selector);
+            for (const button of buttons) {
+              // Get button text/value to verify it's the submit button
+              const buttonText = await page.evaluate(btn => {
+                return btn.value || btn.textContent || btn.innerText || '';
+              }, button);
+              
+              if (buttonText && (
+                buttonText.toLowerCase().includes('submit') || 
+                buttonText.toLowerCase().includes('post') ||
+                buttonText.toLowerCase().includes('sisesta') ||
+                buttonText.toLowerCase().includes('save')
+              )) {
+                saveButton = button;
+                console.log(`Found save button with text: "${buttonText}"`);
+                break;
+              }
+            }
+            if (saveButton) break;
           } catch (e) {
             // Try next selector
           }
         }
         
-        if (!editButton) {
-          console.log(`Edit button not found for "${post.title}" - skipping`);
-          continue;
-        }
-        
-        // Click edit button
-        console.log('Clicking edit...');
-        await editButton.click();
-        await page.waitForNavigation({ waitUntil: 'networkidle2' });
-        
-        // Look for save button
-        let saveButton = null;
-        const specificSelector = 'body > table > tbody > tr > td > table.forumline > tbody > tr:nth-child(43) > td > input:nth-child(6)'
-        
-        try {
-          await page.waitForSelector(specificSelector, { timeout: 5000});
-          saveButton = await page.$(specificSelector);
-        } catch (e) {
-          console.log(`Save button not found for "${post.title}" - skipping`);
-        }
-        
         if (!saveButton) {
-          console.log(`Save button not found for "${post.title}" - skipping`);
+          console.log(`⚠️ Save button not found for "${thread.title}" - skipping`);
+          await page.screenshot({ path: `no-save-button-${i + 1}.jpg` });
           continue;
         }
         
         // Click save button
-        console.log('Saving post...');
+        console.log('💾 Saving post...');
         await saveButton.click();
-        await page.waitForNavigation({ waitUntil: 'networkidle2' });
         
-        console.log(`Updated "${post.title}"`);
+        // Wait for navigation or response
+        try {
+          await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 });
+        } catch (e) {
+
+        }
+
         
-        
+        console.log(`✅ Updated post in "${thread.title}"`);
+        await page.screenshot({ path: `updated-${i + 1}.jpg` });
+                
       } catch (error) {
-        console.log(`Error processing "${post.title}": ${error.message}`);
+        console.log(`❌ Error processing "${thread.title}": ${error.message}`);
+        await page.screenshot({ path: `error-${i + 1}.jpg` });
       }
     }
     
-    console.log('\nBot finished! All accessible posts have been updated.');
+    console.log('\n🎉 All accessible threads have been updated!');
     
   } catch (error) {
-    console.error('Bot error:', error.message);
+    console.error('❌ Bot error:', error.message);
+    if (browser) {
+      await page.screenshot({ path: 'error-final.jpg' });
+    }
   } finally {
     if (browser) {
       await browser.close();
     }
     rl.close();
-    console.log('Browser closed');
+    console.log('🔒 Browser closed');
   }
 }
 
