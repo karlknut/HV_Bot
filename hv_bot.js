@@ -17,7 +17,7 @@ function getUserInput(question) {
   });
 }
 
-// Function to get password input (completely hidden)
+// Function to get password input
 function getPasswordInput(question) {
   return new Promise((resolve) => {
     process.stdout.write(question);
@@ -68,7 +68,7 @@ async function runForumBot() {
     const username = await getUserInput('Enter your username: ');
     const password = await getPasswordInput('Enter your password: ');
     
-    console.log('\n🚀 Launching browser...');
+    console.log('\nLaunching browser...');
     browser = await puppeteer.launch({ 
       headless: false, // Set to true if you don't want to see the browser
       defaultViewport: null 
@@ -105,9 +105,9 @@ async function runForumBot() {
     // Check if login was successful
     const currentUrl = page.url();
     if (currentUrl.includes('foorum.hinnavaatlus.ee') || !currentUrl.includes('login')) {
-      console.log('✅ Login successful!');
+      console.log('Login successful!');
     } else {
-      console.log('❌ Login failed - still on login page');
+      console.log('Login failed - still on login page');
       return;
     }
     
@@ -174,7 +174,7 @@ async function runForumBot() {
               authorText: authorText,
               lastPostText: lastPostText
             });
-            console.log(`✅ Match found: "${titleLink.textContent.trim()}"`);
+            console.log(`Match found: "${titleLink.textContent.trim()}"`);
           }
         } catch (e) {
           console.log(`Error processing row ${index + 1}:`, e.message);
@@ -186,23 +186,19 @@ async function runForumBot() {
     
     if (threadsToEdit.length === 0) {
       console.log('No threads found where you are both author and last poster');
-      await page.screenshot({ path: 'no-threads-screenshot.jpg' });
       return;
     }
     
-    console.log(`Found ${threadsToEdit.length} threads to edit`);
-    await page.screenshot({ path: 'my-posts-page.jpg' });
-    
+    console.log(`Found ${threadsToEdit.length} threads to edit`);    
     // Process each thread
     for (let i = 0; i < threadsToEdit.length; i++) {
       const thread = threadsToEdit[i];
-      console.log(`\n📝 Processing thread ${i + 1}/${threadsToEdit.length}: "${thread.title}"`);
+      console.log(`\nProcessing thread ${i + 1}/${threadsToEdit.length}: "${thread.title}"`);
       
       try {
         // Navigate to the thread
         console.log('Opening thread...');
         await page.goto(thread.threadUrl, { waitUntil: 'networkidle2' });
-        await page.screenshot({ path: `thread-${i + 1}.jpg` });
         
         // Find the last post by your username and get its edit link
         console.log('Looking for your last post in the thread...');
@@ -245,8 +241,7 @@ async function runForumBot() {
         }, username);
         
         if (!editUrl) {
-          console.log(`⚠️ Could not find edit link for your post in "${thread.title}" - skipping`);
-          await page.screenshot({ path: `no-edit-link-${i + 1}.jpg` });
+          console.log(`Could not find edit link for your post in "${thread.title}" - skipping`);
           continue;
         }
         
@@ -254,7 +249,6 @@ async function runForumBot() {
         
         // Navigate to edit page
         await page.goto(editUrl, { waitUntil: 'networkidle2' });
-        await page.screenshot({ path: `edit-page-${i + 1}.jpg` });
         
         
         // Look for save/submit button on edit page
@@ -296,13 +290,12 @@ async function runForumBot() {
         }
         
         if (!saveButton) {
-          console.log(`⚠️ Save button not found for "${thread.title}" - skipping`);
-          await page.screenshot({ path: `no-save-button-${i + 1}.jpg` });
+          console.log(`Save button not found for "${thread.title}" - skipping`);
           continue;
         }
         
         // Click save button
-        console.log('💾 Saving post...');
+        console.log('Saving post...');
         await saveButton.click();
         
         // Wait for navigation or response
@@ -313,28 +306,22 @@ async function runForumBot() {
         }
 
         
-        console.log(`✅ Updated post in "${thread.title}"`);
-        await page.screenshot({ path: `updated-${i + 1}.jpg` });
-                
+        console.log(`Updated post in "${thread.title}"`);                
       } catch (error) {
-        console.log(`❌ Error processing "${thread.title}": ${error.message}`);
-        await page.screenshot({ path: `error-${i + 1}.jpg` });
+        console.log(`Error processing "${thread.title}": ${error.message}`);
       }
     }
     
-    console.log('\n🎉 All accessible threads have been updated!');
+    console.log('\nAll accessible threads have been updated!');
     
   } catch (error) {
-    console.error('❌ Bot error:', error.message);
-    if (browser) {
-      await page.screenshot({ path: 'error-final.jpg' });
-    }
+    console.error('Bot error:', error.message);
   } finally {
     if (browser) {
       await browser.close();
     }
     rl.close();
-    console.log('🔒 Browser closed');
+    console.log('Browser closed');
   }
 }
 
