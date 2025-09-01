@@ -20,40 +20,62 @@ function getUserInput(question) {
 // Function to get password input
 function getPasswordInput(question) {
   return new Promise((resolve) => {
-    process.stdout.write(question);
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.setEncoding('utf8');
+    const stdin = process.stdin;
+    const stdout = process.stdout;
+    
+    stdout.write(question);
     
     let password = '';
-    const listener = function(ch) {
-      ch = ch + '';
+    
+    // Mute stdout to prevent any output
+    const originalWrite = stdout.write;
+    stdout.write = function() { return true; };
+    
+    // Set up stdin for raw input
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding('utf8');
+    
+    const cleanup = () => {
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdin.removeAllListeners('data');
+      // Restore stdout
+      stdout.write = originalWrite;
+    };
+    
+    const onData = (key) => {
+      key = key.toString();
       
-      switch(ch) {
+      switch (key) {
         case '\n':
         case '\r':
-        case '\u0004':
-          process.stdin.setRawMode(false);
-          process.stdin.pause();
-          process.stdin.removeListener('data', listener);
-          process.stdout.write('\n');
+        case '\u0004': // Ctrl-D (EOT)
+          cleanup();
+          stdout.write('\n');
           resolve(password);
           break;
-        case '\u0003':
-          process.exit();
+        case '\u0003': // Ctrl-C (ETX)
+          cleanup();
+          stdout.write('\n');
+          process.exit(1);
           break;
-        case '\u007f': // backspace
+        case '\u007f': // Backspace
+        case '\b': // Backspace
           if (password.length > 0) {
             password = password.slice(0, -1);
           }
           break;
         default:
-          password += ch;
+          // Add printable characters only
+          if (key.charCodeAt(0) >= 32 && key.charCodeAt(0) < 127) {
+            password += key;
+          }
           break;
       }
     };
     
-    process.stdin.on('data', listener);
+    stdin.on('data', onData);
   });
 }
 
