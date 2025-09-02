@@ -1,0 +1,107 @@
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.container {
+    background: rgba(26, 26, 26, 0.9);
+    border: 2px solid #444;
+    border-radius: 20px;
+    padding: 3rem;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    z-index: 1;
+    animation: slideIn 0.8s ease-out;
+}
+
+.logo {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.logo h1 {
+    color: #ff6b6b;
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+}
+
+.logo p {
+    color: #ccc;
+    font-size: 1rem;
+}
+
+.tabs {
+    display: flex;
+    margin-bottom: 2rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    padding: 0.25rem;
+}
+
+.tab {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    text-align: center;
+    background: transparent;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+}
+
+.tab.active {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+}
+
+.form {
+    display: none;
+}
+
+.form.active {
+    display: block;
+}
+
+.password-requirements {
+    font-size: 0.8rem;
+    color: #999;
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+.loading {
+    display: none;
+    text-align: center;
+    color: #ccc;
+    margin-top: 1rem;
+}
+
+.btn {
+    width: 100%;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.btn span {
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 768px) {
+    .container {
+        margin: 1rem;
+        padding: 2rem;
+    }
+    
+    .logo h1 {
+        font-size: 2rem;
+    }
+}

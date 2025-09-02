@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HV Forum Bot - Status</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 50%, #0c0c0c 100%);
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        .back-button {
+            background: linear-gradient(135deg, #666 0%, #555 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 0.5rem 1.5rem;
+            color: white;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .back-button:hover {
+            background: linear-gradient(135deg, #777 0%, #666 100%);
+            transform: translateY(-2px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+            border: 2px solid #444;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: #666;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+        }
+
+        .stat-card h3 {
+            color: #ff6b6b;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #ccc;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .status-running {
+            background: rgba(255, 107, 107, 0.9);
+            color: white;
+        }
+
+        .status-idle {
+            background: rgba(50, 205, 50, 0.9);
+            color: white;
+        }
+
+        .status-error {
+            background: rgba(255, 69, 58, 0.9);
+            color: white;
+        }
+
+        .history-section {
+            margin-top: 3rem;
+        }
+
+        .history-section h2 {
+            color: #ff6b6b;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+
+        .history-table {
+            width: 100%;
+            background: rgba(42, 42, 42, 0.8);
+            border-radius: 10px;
+            overflow: hidden;
+            border-collapse: collapse;
+        }
+
+        .history-table th,
+        .history-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #444;
+        }
+
+        .history-table th {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+
+        .history-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .log-section {
+            margin-top: 3rem;
+            display: none;
+        }
+
+        .log-section.show {
+            display: block;
+        }
+
+        .log-section h2 {
+            color: #4834d4;
+            margin-bottom: 1rem;
+        }
+
+        .log-container {
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem;
+            border-radius: 3px;
+        }
+
+        .log-entry.output {
+            color: #00ff00;
+        }
+
+        .log-entry.error {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .log-entry.info {
+            color: #4834d4;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .control-button {
+            background: linear-gradient(135deg, #4834d4 0%, #686de0 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 0.7rem 1.5rem;
+            color: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .control-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(72, 52, 212, 0.4);
+        }
+
+        .control-button:disabled {
+            background: rgba(100, 100, 100, 0.5);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .credentials-form {
+            background: rgba(42, 42, 42, 0.8);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            border: 1px solid #444;
+        }
+
+        .credentials-form h3 {
+            color: #ff6b6b;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #ccc;
+        }
+
+        .form-group input {
+            width: 100%;
+            max-width: 320px;
+            padding: 0.7rem;
+            border: 1px solid #666;
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus {
+            border-color: #ff6b6b;
+            outline: none;
+        }
+
+        .save-button {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            border: none;
+            border-radius: 20px;
+            padding: 0.7rem 1.5rem;
+            color: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .save-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .history-table {
+                font-size: 0.8rem;
+            }
+            
+            .history-table th,
+            .history-table td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-button">← Back to Main</a>
+            <h1>Bot Status Dashboard</h1>
+        </div>
+
+        <!-- Credentials Section -->
+        <div class="credentials-form" id="credentialsForm">
+            <h3>Bot Credentials</h3>
+            <p style="color: #ccc; margin-bottom: 1rem;">Set your forum login credentials (stored locally on server)</p>
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" placeholder="Enter your forum username (Case Sensitive)">
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="Enter your forum password">
+            </div>
+            <button class="save-button" onclick="saveCredentials()">Save Credentials</button>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="controls">
+            <button class="control-button" onclick="refreshStats()">Refresh Stats</button>
+            <button class="control-button" onclick="toggleLogs()">Toggle Live Logs</button>
+            <button class="control-button" id="emergencyStop" onclick="emergencyStop()" disabled>Emergency Stop</button>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Bot Status</h3>
+                <div class="stat-value">
+                    <span class="status-indicator" id="botStatus">Loading...</span>
+                </div>
+                <div class="stat-label">Current state</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Total Runs</h3>
+                <div class="stat-value" id="totalRuns">-</div>
+                <div class="stat-label">Since deployment</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Posts Updated</h3>
+                <div class="stat-value" id="postsUpdated">-</div>
+                <div class="stat-label">Total posts refreshed</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Comments Added</h3>
+                <div class="stat-value" id="commentsAdded">-</div>
+                <div class="stat-label">Total 👍 comments</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Last Run</h3>
+                <div class="stat-value" id="lastRun">-</div>
+                <div class="stat-label" id="lastRunStatus">Status unknown</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Success Rate</h3>
+                <div class="stat-value" id="successRate">-</div>
+                <div class="stat-label">Completed runs / Total runs</div>
+            </div>
+        </div>
+
+        <!-- Live Logs Section -->
+        <div class="log-section" id="logSection">
+            <h2>Live Bot Output</h2>
+            <div class="log-container" id="logContainer">
+                <div class="log-entry info">Waiting for bot output...</div>
+            </div>
+        </div>
+
+        <!-- Run History Section -->
+        <div class="history-section">
+            <h2>Run History</h2>
+            <table class="history-table" id="historyTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Posts Updated</th>
+                        <th>Comments Added</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: #666;">Loading history...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let logsVisible = false;
+
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}`);
+            
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                addLogEntry('WebSocket connected', 'info');
+            };
+            
+            ws.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                handleWebSocketMessage(message);
+            };
+            
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+                addLogEntry('WebSocket disconnected', 'error');
+                // Attempt to reconnect after 3 seconds
+                setTimeout(initWebSocket, 3000);
+            };
+        }
+
+        function handleWebSocketMessage(message) {
+            switch(message.type) {
+                case 'botStarted':
+                    updateBotStatus(true);
+                    addLogEntry('Bot started: ' + new Date(message.data.timestamp).toLocaleString(), 'info');
+                    document.getElementById('emergencyStop').disabled = false;
+                    break;
+                case 'botCompleted':
+                    updateBotStatus(false);
+                    addLogEntry(`Bot completed: ${message.data.postsUpdated} posts updated, ${message.data.commentsAdded} comments added`, 'info');
+                    document.getElementById('emergencyStop').disabled = true;
+                    refreshStats();
+                    break;
+                case 'botStopped':
+                    updateBotStatus(false);
+                    addLogEntry('Bot stopped by user', 'info');
+                    document.getElementById('emergencyStop').disabled = true;
+                    refreshStats();
+                    break;
+                case 'botOutput':
+                    addLogEntry(message.data, 'output');
+                    break;
+                case 'botError':
+                    updateBotStatus(false);
+                    addLogEntry('Bot error: ' + message.data.error, 'error');
+                    document.getElementById('emergencyStop').disabled = true;
+                    refreshStats();
+                    break;
+            }
+        }
+
+        function updateBotStatus(isRunning) {
+            const statusElement = document.getElementById('botStatus');
+            
+            if (isRunning) {
+                statusElement.textContent = 'Running';
+                statusElement.className = 'status-indicator status-running';
+            } else {
+                statusElement.textContent = 'Idle';
+                statusElement.className = 'status-indicator status-idle';
+            }
+        }
+
+        function addLogEntry(message, type = 'output') {
+            if (!logsVisible) return;
+            
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            
+            logContainer.appendChild(logEntry);
+            
+            // Keep only last 100 log entries
+            while (logContainer.children.length > 100) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+            
+            // Auto scroll to bottom
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        async function refreshStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+                updateStatsDisplay(stats);
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        function updateStatsDisplay(stats) {
+            document.getElementById('totalRuns').textContent = stats.totalRuns || 0;
+            document.getElementById('postsUpdated').textContent = stats.totalPostsUpdated || 0;
+            document.getElementById('commentsAdded').textContent = stats.totalCommentsAdded || 0;
+            
+            const lastRun = stats.lastRunDate ? new Date(stats.lastRunDate).toLocaleDateString() : 'Never';
+            document.getElementById('lastRun').textContent = lastRun;
+            document.getElementById('lastRunStatus').textContent = stats.lastRunStatus || 'Unknown';
+            
+            // Calculate success rate
+            const totalRuns = stats.totalRuns || 0;
+            const successfulRuns = stats.runHistory ? stats.runHistory.filter(run => run.status === 'completed').length : 0;
+            const successRate = totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0;
+            document.getElementById('successRate').textContent = `${successRate}%`;
+            
+            // Update bot status
+            updateBotStatus(stats.isRunning);
+            
+            // Update run history
+            updateRunHistory(stats.runHistory || []);
+        }
+
+        function updateRunHistory(history) {
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '';
+            
+            if (history.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">No runs yet</td></tr>';
+                return;
+            }
+            
+            history.slice(0, 20).forEach(run => {
+                const row = tbody.insertRow();
+                const date = new Date(run.date).toLocaleString();
+                
+                row.innerHTML = `
+                    <td>${date}</td>
+                    <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span></td>
+                    <td>${run.postsUpdated || 0}</td>
+                    <td>${run.commentsAdded || 0}</td>
+                    <td>-</td>
+                `;
+            });
+        }
+
+        function getStatusClass(status) {
+            switch(status) {
+                case 'completed': return 'status-idle';
+                case 'running': return 'status-running';
+                case 'error': return 'status-error';
+                default: return 'status-idle';
+            }
+        }
+
+        function toggleLogs() {
+            logsVisible = !logsVisible;
+            const logSection = document.getElementById('logSection');
+            
+            if (logsVisible) {
+                logSection.classList.add('show');
+                addLogEntry('Live logs enabled', 'info');
+            } else {
+                logSection.classList.remove('show');
+            }
+        }
+
+        async function saveCredentials() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Credentials saved successfully!');
+                    // Clear password field for security
+                    document.getElementById('password').value = '';
+                } else {
+                    alert('Failed to save credentials: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error saving credentials: ' + error.message);
+            }
+        }
+
+        async function emergencyStop() {
+            if (!confirm('Are you sure you want to stop the bot?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/stop-bot', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLogEntry('Emergency stop initiated', 'info');
+                } else {
+                    alert('Failed to stop bot: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error stopping bot: ' + error.message);
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initWebSocket();
+            refreshStats();
+            
+            // Auto-refresh stats every 30 seconds
+            setInterval(refreshStats, 30000);
+        });
+    </script>
+</body>
+</html>
