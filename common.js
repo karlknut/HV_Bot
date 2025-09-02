@@ -1,132 +1,264 @@
-(function() {
-    'use strict';
-    
-    let starCanvas, starCtx;
-    let stars = [];
-    let animationId;
-    
-    // Configuration based on page type
-    const configs = {
-        login: { numStars: 1000, speed: 0.3, alpha: 0.8 },
-        dashboard: { numStars: 2500, speed: 0.4, alpha: 0.6 },
-        status: { numStars: 1500, speed: 0.35, alpha: 0.7 }
-    };
-    
-    function initStarfield() {
-        starCanvas = document.getElementById("starfield");
-        if (!starCanvas) {
-            console.warn('Starfield canvas not found');
-            return;
-        }
+// Starfield Animation
+class StarfieldAnimation {
+    constructor(canvasId = 'starfield') {
+        this.canvas = document.getElementById(canvasId);
+        if (!this.canvas) return;
         
-        starCtx = starCanvas.getContext("2d");
-        resizeCanvas();
+        this.ctx = this.canvas.getContext('2d');
+        this.stars = [];
+        this.numStars = window.innerWidth < 768 ? 1000 : 2500;
+        this.speed = 0.4;
         
-        // Determine page type from body class or URL
-        const pageType = document.body.className.includes('login') ? 'login' :
-                        document.body.className.includes('dashboard') ? 'dashboard' :
-                        window.location.pathname.includes('status') ? 'status' : 'dashboard';
+        this.init();
+        this.animate();
         
-        const config = configs[pageType] || configs.dashboard;
-        
-        initStars(config.numStars);
-        startAnimation(config.speed, config.alpha);
-        
-        // Handle window resize
-        window.addEventListener("resize", () => {
-            resizeCanvas();
-            initStars(config.numStars);
-        });
+        // Handle resize
+        window.addEventListener('resize', () => this.handleResize());
     }
     
-    function resizeCanvas() {
-        starCanvas.width = window.innerWidth;
-        starCanvas.height = window.innerHeight;
-    }
-    
-    function initStars(numStars) {
-        stars = [];
-        for (let i = 0; i < numStars; i++) {
-            stars.push({
-                x: (Math.random() - 0.5) * starCanvas.width,
-                y: (Math.random() - 0.5) * starCanvas.height,
-                z: Math.random() * starCanvas.width
+    init() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        
+        this.stars = [];
+        for (let i = 0; i < this.numStars; i++) {
+            this.stars.push({
+                x: (Math.random() - 0.5) * this.canvas.width,
+                y: (Math.random() - 0.5) * this.canvas.height,
+                z: Math.random() * this.canvas.width
             });
         }
     }
     
-    function drawStars(speed, alpha) {
-        // Clear with subtle fade effect
-        starCtx.fillStyle = "rgba(0, 0, 0, 0.1)";
-        starCtx.fillRect(0, 0, starCanvas.width, starCanvas.height);
+    animate() {
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        for (let i = 0; i < stars.length; i++) {
-            let star = stars[i];
-            star.z -= speed;
+        for (let i = 0; i < this.numStars; i++) {
+            let star = this.stars[i];
+            star.z -= this.speed;
             
             if (star.z <= 0) {
-                star.x = (Math.random() - 0.5) * starCanvas.width;
-                star.y = (Math.random() - 0.5) * starCanvas.height;
-                star.z = starCanvas.width;
+                star.x = (Math.random() - 0.5) * this.canvas.width;
+                star.y = (Math.random() - 0.5) * this.canvas.height;
+                star.z = this.canvas.width;
             }
             
             let k = 128.0 / star.z;
-            let x = star.x * k + starCanvas.width / 2;
-            let y = star.y * k + starCanvas.height / 2;
+            let x = star.x * k + this.canvas.width / 2;
+            let y = star.y * k + this.canvas.height / 2;
             
-            if (x < 0 || x >= starCanvas.width || y < 0 || y >= starCanvas.height) continue;
+            if (x < 0 || x >= this.canvas.width || y < 0 || y >= this.canvas.height) continue;
             
-            let size = (1 - star.z / starCanvas.width) * 2.5;
-            let shade = 255 - Math.floor(star.z / starCanvas.width * 200);
+            let size = (1 - star.z / this.canvas.width) * 2.5;
+            let shade = 255 - Math.floor(star.z / this.canvas.width * 200);
             
-            starCtx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, ${alpha})`;
-            starCtx.beginPath();
-            starCtx.arc(x, y, size, 0, Math.PI * 2);
-            starCtx.fill();
+            this.ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.6)`;
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, size, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        
+        requestAnimationFrame(() => this.animate());
+    }
+    
+    handleResize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.init();
+    }
+}
+
+// Authentication utilities
+class Auth {
+    static getToken() {
+        return localStorage.getItem('token');
+    }
+    
+    static getUser() {
+        const userData = localStorage.getItem('user');
+        return userData ? JSON.parse(userData) : null;
+    }
+    
+    static setAuth(token, user) {
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+    }
+    
+    static clearAuth() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+    }
+    
+    static isAuthenticated() {
+        return !!this.getToken();
+    }
+    
+    static checkAuth() {
+        if (!this.isAuthenticated()) {
+            window.location.href = '/';
+            return false;
+        }
+        return true;
+    }
+    
+    static logout() {
+        this.clearAuth();
+        window.location.href = '/';
+    }
+}
+
+// API utilities
+class API {
+    static async request(url, options = {}) {
+        const token = Auth.getToken();
+        
+        const defaultOptions = {
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token && { 'Authorization': `Bearer ${token}` })
+            }
+        };
+        
+        const finalOptions = {
+            ...defaultOptions,
+            ...options,
+            headers: {
+                ...defaultOptions.headers,
+                ...options.headers
+            }
+        };
+        
+        try {
+            const response = await fetch(url, finalOptions);
+            
+            // Handle auth errors
+            if (response.status === 401 || response.status === 403) {
+                Auth.logout();
+                return null;
+            }
+            
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('API request error:', error);
+            throw error;
         }
     }
     
-    function startAnimation(speed, alpha) {
-        function animate() {
-            drawStars(speed, alpha);
-            animationId = requestAnimationFrame(animate);
-        }
-        animate();
+    static get(url) {
+        return this.request(url, { method: 'GET' });
     }
     
-    function stopAnimation() {
-        if (animationId) {
-            cancelAnimationFrame(animationId);
-            animationId = null;
+    static post(url, data) {
+        return this.request(url, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+}
+
+// WebSocket Manager
+class WebSocketManager {
+    constructor(onMessage) {
+        this.ws = null;
+        this.onMessage = onMessage;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 10;
+        this.reconnectDelay = 3000;
+        this.isIntentionallyClosed = false;
+    }
+    
+    connect() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        this.ws = new WebSocket(`${protocol}//${window.location.host}`);
+        
+        this.ws.onopen = () => {
+            console.log('WebSocket connected');
+            this.reconnectAttempts = 0;
+            
+            // Authenticate the connection
+            const token = Auth.getToken();
+            if (token) {
+                this.send({ type: 'auth', token });
+            }
+        };
+        
+        this.ws.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                if (this.onMessage) {
+                    this.onMessage(message);
+                }
+            } catch (error) {
+                console.error('WebSocket message parse error:', error);
+            }
+        };
+        
+        this.ws.onclose = () => {
+            console.log('WebSocket disconnected');
+            
+            if (!this.isIntentionallyClosed && this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                console.log(`Reconnecting... (attempt ${this.reconnectAttempts})`);
+                setTimeout(() => this.connect(), this.reconnectDelay);
+            }
+        };
+        
+        this.ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    }
+    
+    send(data) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(data));
         }
     }
     
-    // Initialize when DOM is loaded
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initStarfield);
-    } else {
-        initStarfield();
+    close() {
+        this.isIntentionallyClosed = true;
+        if (this.ws) {
+            this.ws.close();
+        }
+    }
+}
+
+// UI Utilities
+class UI {
+    static showMessage(message, type = 'error', elementId = 'message') {
+        const messageEl = document.getElementById(elementId);
+        if (!messageEl) return;
+        
+        messageEl.textContent = message;
+        messageEl.className = `message ${type}`;
+        messageEl.style.display = 'block';
+        
+        setTimeout(() => {
+            messageEl.style.display = 'none';
+        }, 5000);
     }
     
-    // Handle page visibility changes to pause/resume animation
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            stopAnimation();
-        } else {
-            const pageType = document.body.className.includes('login') ? 'login' :
-                            document.body.className.includes('dashboard') ? 'dashboard' :
-                            window.location.pathname.includes('status') ? 'status' : 'dashboard';
-            const config = configs[pageType] || configs.dashboard;
-            startAnimation(config.speed, config.alpha);
+    static showLoading(show = true, elementId = 'loading') {
+        const loadingEl = document.getElementById(elementId);
+        if (loadingEl) {
+            loadingEl.style.display = show ? 'block' : 'none';
         }
-    });
+        
+        // Disable all submit buttons while loading
+        document.querySelectorAll('button[type="submit"], .btn').forEach(btn => {
+            btn.disabled = show;
+        });
+    }
     
-    // Export functions for manual control if needed
-    window.starfield = {
-        init: initStarfield,
-        stop: stopAnimation,
-        start: function(speed = 0.4, alpha = 0.6) {
-            startAnimation(speed, alpha);
-        }
-    };
-})();
+    static formatDate(dateString) {
+        if (!dateString) return 'Never';
+        const date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    }
+}
+
+// Initialize starfield on DOM load
+document.addEventListener('DOMContentLoaded', () => {
+    new StarfieldAnimation();
+});

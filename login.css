@@ -1,21 +1,30 @@
-.login-page {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-}
-
-.container {
+.login-container {
     background: rgba(26, 26, 26, 0.9);
     border: 2px solid #444;
     border-radius: 20px;
     padding: 3rem;
     max-width: 450px;
     width: 90%;
+    margin: 0 auto;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(10px);
-    z-index: 1;
+    z-index: 2;
     animation: slideIn 0.8s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) translateY(0);
+    }
 }
 
 .logo {
@@ -84,20 +93,9 @@
     margin-top: 1rem;
 }
 
-.btn {
-    width: 100%;
-    margin-bottom: 1rem;
-    font-size: 1.1rem;
-}
-
-.btn span {
-    position: relative;
-    z-index: 1;
-}
-
 @media (max-width: 768px) {
-    .container {
-        margin: 1rem;
+    .login-container {
+        width: 95%;
         padding: 2rem;
     }
     

@@ -7,24 +7,24 @@
     <link rel="stylesheet" href="/css/common.css">
     <link rel="stylesheet" href="/css/login.css">
 </head>
-<body class="login-page">
+<body>
     <canvas id="starfield"></canvas>
 
-    <div class="container">
+    <div class="login-container">
         <div class="logo">
             <h1>HV Forum Bot</h1>
             <p>Multi-User Forum Automation</p>
         </div>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('login')">Login</button>
-            <button class="tab" onclick="switchTab('register')">Register</button>
+            <button class="tab active" data-tab="login">Login</button>
+            <button class="tab" data-tab="register">Register</button>
         </div>
 
         <div class="message" id="message"></div>
 
         <!-- Login Form -->
-        <form class="form active" id="loginForm">
+        <form class="form active" id="loginForm" data-tab="login">
             <div class="form-group">
                 <label for="loginUsername">Username</label>
                 <input type="text" id="loginUsername" required>
@@ -34,12 +34,12 @@
                 <input type="password" id="loginPassword" required>
             </div>
             <button type="submit" class="btn btn-primary">
-                <span>Login</span>
+                <span style="position: relative; z-index: 1;">Login</span>
             </button>
         </form>
 
         <!-- Register Form -->
-        <form class="form" id="registerForm">
+        <form class="form" id="registerForm" data-tab="register">
             <div class="form-group">
                 <label for="registerUsername">Username</label>
                 <input type="text" id="registerUsername" required>
@@ -56,7 +56,7 @@
                 <input type="password" id="confirmPassword" required>
             </div>
             <button type="submit" class="btn btn-primary">
-                <span>Register</span>
+                <span style="position: relative; z-index: 1;">Register</span>
             </button>
         </form>
 
@@ -66,7 +66,7 @@
         </div>
     </div>
 
-    <script src="/js/starfield.js"></script>
+    <script src="/js/common.js"></script>
     <script src="/js/login.js"></script>
 </body>
 </html>

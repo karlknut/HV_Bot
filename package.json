@@ -1,16 +1,17 @@
 {
   "name": "hv-forum-bot-multiuser",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Multi-user HV Forum Bot with encrypted credentials and user authentication",
-  "main": "server.js",
+  "main": "server/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
-    "setup": "npm install && node setup.js"
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
+    "setup": "node setup.js",
+    "clean": "rm -rf data/users.json data/user_stats/*.json",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
-    "crypto": "^1.0.1",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "puppeteer": "^21.11.0",
@@ -28,8 +29,13 @@
     "automation",
     "multi-user",
     "authentication",
-    "encryption"
+    "encryption",
+    "websocket"
   ],
   "author": "Nib",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karlknut/HV_Bot.git"
+  }
 }

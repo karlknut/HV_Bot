@@ -1,101 +1,66 @@
-(function() {
-    'use strict';
-    
-    let currentTab = 'login';
-
-    function init() {
-        // Check if user is already logged in
-        if (localStorage.getItem('token')) {
-            window.location.href = '/dashboard';
-            return;
-        }
-        
-        // Set up event listeners
-        setupEventListeners();
+document.addEventListener('DOMContentLoaded', () => {
+    // Check if already logged in
+    if (Auth.isAuthenticated()) {
+        window.location.href = '/dashboard';
+        return;
     }
     
-    function setupEventListeners() {
-        // Form submissions
-        document.getElementById('loginForm').addEventListener('submit', handleLogin);
-        document.getElementById('registerForm').addEventListener('submit', handleRegister);
-    }
-
-    window.switchTab = function(tab) {
-        currentTab = tab;
-        
-        // Update tab buttons
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        event.target.classList.add('active');
-        
-        // Update forms
-        document.querySelectorAll('.form').forEach(f => f.classList.remove('active'));
-        document.getElementById(tab + 'Form').classList.add('active');
-        
-        // Clear messages
-        hideMessage();
-    };
-
-    function showMessage(text, type = 'error') {
-        const messageEl = document.getElementById('message');
-        messageEl.textContent = text;
-        messageEl.className = `message ${type}`;
-        messageEl.style.display = 'block';
-    }
-
-    function hideMessage() {
-        document.getElementById('message').style.display = 'none';
-    }
-
-    function showLoading(show = true) {
-        document.getElementById('loading').style.display = show ? 'block' : 'none';
-        document.querySelectorAll('.btn').forEach(btn => btn.disabled = show);
-    }
-
-    async function handleLogin(e) {
+    // Tab switching
+    const tabs = document.querySelectorAll('.tab');
+    const forms = document.querySelectorAll('.form');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.tab;
+            
+            // Update active states
+            tabs.forEach(t => t.classList.remove('active'));
+            forms.forEach(f => f.classList.remove('active'));
+            
+            tab.classList.add('active');
+            document.querySelector(`form[data-tab="${targetTab}"]`).classList.add('active');
+            
+            // Clear any messages
+            document.getElementById('message').style.display = 'none';
+        });
+    });
+    
+    // Login form handler
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
         const username = document.getElementById('loginUsername').value;
         const password = document.getElementById('loginPassword').value;
         
         if (!username || !password) {
-            showMessage('Please fill in all fields');
+            UI.showMessage('Please fill in all fields');
             return;
         }
-
-        showLoading(true);
-        hideMessage();
-
+        
+        UI.showLoading(true);
+        
         try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const result = await response.json();
-
+            const result = await API.post('/api/login', { username, password });
+            
             if (result.success) {
-                // Store token and redirect
-                localStorage.setItem('token', result.token);
-                localStorage.setItem('user', JSON.stringify(result.user));
-                
-                showMessage('Login successful! Redirecting...', 'success');
+                Auth.setAuth(result.token, result.user);
+                UI.showMessage('Login successful! Redirecting...', 'success');
                 
                 setTimeout(() => {
                     window.location.href = '/dashboard';
                 }, 1000);
             } else {
-                showMessage(result.error || 'Login failed');
+                UI.showMessage(result.error || 'Login failed');
+                UI.showLoading(false);
             }
         } catch (error) {
-            console.error('Login error:', error);
-            showMessage('Network error. Please try again.');
+            UI.showMessage('Network error. Please try again.');
+            UI.showLoading(false);
         }
-
-        showLoading(false);
-    }
-
-    async function handleRegister(e) {
+    });
+    
+    // Register form handler
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
         const username = document.getElementById('registerUsername').value;
@@ -103,58 +68,40 @@
         const confirmPassword = document.getElementById('confirmPassword').value;
         
         if (!username || !password || !confirmPassword) {
-            showMessage('Please fill in all fields');
+            UI.showMessage('Please fill in all fields');
             return;
         }
-
+        
         if (password !== confirmPassword) {
-            showMessage('Passwords do not match');
+            UI.showMessage('Passwords do not match');
             return;
         }
-
+        
         if (password.length < 8) {
-            showMessage('Password must be at least 8 characters long');
+            UI.showMessage('Password must be at least 8 characters long');
             return;
         }
-
-        showLoading(true);
-        hideMessage();
-
+        
+        UI.showLoading(true);
+        
         try {
-            const response = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const result = await response.json();
-
+            const result = await API.post('/api/register', { username, password });
+            
             if (result.success) {
-                showMessage('Registration successful! You can now login.', 'success');
+                UI.showMessage('Registration successful! You can now login.', 'success');
                 
                 // Switch to login tab after successful registration
                 setTimeout(() => {
-                    // Simulate clicking the login tab
-                    const loginTab = document.querySelector('.tab');
-                    const event = { target: loginTab };
-                    switchTab('login');
+                    document.querySelector('.tab[data-tab="login"]').click();
                     document.getElementById('loginUsername').value = username;
                 }, 1500);
             } else {
-                showMessage(result.error || 'Registration failed');
+                UI.showMessage(result.error || 'Registration failed');
             }
         } catch (error) {
-            console.error('Registration error:', error);
-            showMessage('Network error. Please try again.');
+            UI.showMessage('Network error. Please try again.');
         }
-
-        showLoading(false);
-    }
-
-    // Initialize when DOM is loaded
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-})();
+        
+        UI.showLoading(false);
+    });
+});

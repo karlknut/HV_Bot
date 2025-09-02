@@ -1,12 +1,44 @@
-// setup.js - Run this script after npm install to configure the application
+// setup.js - Creates the new folder structure and configures the application
 const fs = require('fs').promises;
-const crypto = require('crypto');
 const path = require('path');
+const crypto = require('crypto');
+
+async function createDirectory(dirPath) {
+    try {
+        await fs.access(dirPath);
+        console.log(`✓ Directory exists: ${dirPath}`);
+    } catch {
+        await fs.mkdir(dirPath, { recursive: true });
+        console.log(`✓ Created directory: ${dirPath}`);
+    }
+}
+
+async function createFile(filePath, content) {
+    try {
+        await fs.access(filePath);
+        console.log(`⚠ File already exists: ${filePath}`);
+    } catch {
+        await fs.writeFile(filePath, content);
+        console.log(`✓ Created file: ${filePath}`);
+    }
+}
 
 async function setup() {
-    console.log('Setting up HV Forum Bot Multi-User Application...\n');
+    console.log('🚀 Setting up HV Forum Bot Multi-User Application...\n');
 
     try {
+        // Create directory structure
+        console.log('Creating directory structure...');
+        await createDirectory('server');
+        await createDirectory('server/utils');
+        await createDirectory('bot');
+        await createDirectory('public');
+        await createDirectory('public/css');
+        await createDirectory('public/js');
+        await createDirectory('public/pages');
+        await createDirectory('data');
+        await createDirectory('data/user_stats');
+
         // Generate secure environment variables
         const jwtSecret = crypto.randomBytes(64).toString('hex');
         const encryptionKey = crypto.randomBytes(32).toString('hex');
@@ -26,97 +58,69 @@ PORT=3000
 
 # Optional: Set to production for production deployment
 NODE_ENV=development
-
-# Optional: Database URL if you want to use a database instead of JSON files
-# DATABASE_URL=your_database_url_here
 `;
 
-        await fs.writeFile('.env', envContent);
-        console.log('✓ Created .env file with secure keys');
+        await createFile('.env', envContent);
 
-        // Create directories for user data
-        try {
-            await fs.access('user_stats');
-        } catch {
-            await fs.mkdir('user_stats');
-            console.log('✓ Created user_stats directory');
-        }
+        // Create empty users.json
+        await createFile('data/users.json', '{}');
 
-        // Create empty users.json if it doesn't exist
-        try {
-            await fs.access('users.json');
-        } catch {
-            await fs.writeFile('users.json', '{}');
-            console.log('✓ Created users.json file');
-        }
-
-        // Create gitignore if it doesn't exist
+        // Create .gitignore
         const gitignoreContent = `# Dependencies
 node_modules/
 
 # Environment variables
 .env
+.env.local
+.env.*.local
 
 # User data (contains sensitive information)
-users.json
-user_stats/
-credentials.json
+data/users.json
+data/user_stats/
 
 # Logs
+logs/
 *.log
+npm-debug.log*
 
 # OS generated files
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
 # Editor files
 .vscode/
 .idea/
-*.swp
-*.swo
+*.sublime-*
 
 # Puppeteer
 .local-chromium/
+
+# Build files
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
 `;
 
-        try {
-            await fs.access('.gitignore');
-        } catch {
-            await fs.writeFile('.gitignore', gitignoreContent);
-            console.log('✓ Created .gitignore file');
-        }
+        await createFile('.gitignore', gitignoreContent);
 
-        // Create README with setup instructions
+        // Create README
         const readmeContent = `# HV Forum Bot - Multi-User Edition
 
 A secure, multi-user web application for automating forum activities with encrypted credential storage.
 
-## Features
-
-- **Multi-User Support**: Each user has their own account and bot instance
-- **Secure Authentication**: JWT-based authentication with bcrypt password hashing
-- **Encrypted Credentials**: Forum passwords are encrypted and stored securely
-- **Real-time Updates**: WebSocket-based real-time status updates
-- **User Isolation**: Each user's data and bot runs are completely isolated
-- **Modern UI**: Responsive design with animated backgrounds
-
-## Security Features
-
-- Passwords are hashed using bcrypt with salt rounds
-- Forum credentials are encrypted using AES-256-CBC
-- JWT tokens for secure API authentication
-- User data isolation (no user can see other users' data)
-- Environment variables for sensitive configuration
-- Secure WebSocket authentication
-
-## Setup Instructions
+## 🚀 Quick Start
 
 1. **Install Dependencies**
    \`\`\`bash
    npm install
    \`\`\`
 
-2. **Run Setup Script**
+2. **Run Setup Script** (if not already done)
    \`\`\`bash
    npm run setup
    \`\`\`
@@ -129,95 +133,128 @@ A secure, multi-user web application for automating forum activities with encryp
 4. **Access the Application**
    - Open your browser to \`http://localhost:3000\`
    - Register a new account
-   - Set your forum credentials
+   - Set your forum credentials in the dashboard
    - Start your bot!
 
-## File Structure
+## 📁 Project Structure
 
 \`\`\`
-├── server.js              # Main server file with authentication
-├── hv_bot_module.js       # Bot logic (unchanged)
-├── login.html             # Login/Register page
-├── dashboard.html         # User dashboard
-├── user_status.html       # Status page (to be created)
-├── package.json           # Dependencies
-├── .env                   # Environment variables (auto-generated)
-├── users.json             # User accounts (auto-generated)
-└── user_stats/            # Individual user statistics (auto-generated)
-    ├── user1.json
-    ├── user2.json
-    └── ...
+hv-forum-bot/
+├── server/                 # Backend server files
+│   ├── server.js          # Main server with authentication
+│   └── utils/             # Utility modules
+│       └── encryption.js  # Fixed encryption utility
+├── bot/                   # Bot logic
+│   └── hv_bot_module.js   # Forum automation module
+├── public/                # Frontend files
+│   ├── css/              # Stylesheets
+│   │   ├── common.css    # Shared styles
+│   │   └── [page].css    # Page-specific styles
+│   ├── js/               # JavaScript files
+│   │   ├── common.js     # Shared utilities
+│   │   └── [page].js     # Page-specific scripts
+│   └── pages/            # HTML pages
+│       ├── login.html
+│       ├── dashboard.html
+│       └── status.html
+├── data/                  # User data (gitignored)
+│   ├── users.json        # User accounts
+│   └── user_stats/       # User statistics
+└── .env                   # Environment variables
 \`\`\`
 
-## Environment Variables
+## 🔒 Security Features
 
-The setup script automatically generates these in \`.env\`:
+- **Bcrypt Password Hashing**: User passwords are securely hashed
+- **AES-256-CBC Encryption**: Forum credentials are encrypted
+- **JWT Authentication**: Secure token-based authentication
+- **User Isolation**: Complete data separation between users
+- **WebSocket Security**: Authenticated real-time connections
 
-- \`JWT_SECRET\`: Secret key for JWT token signing
-- \`ENCRYPTION_KEY\`: Key for encrypting forum credentials
+## 🛠️ Available Scripts
+
+- \`npm start\`: Start the production server
+- \`npm run dev\`: Start with auto-reload (requires nodemon)
+- \`npm run setup\`: Initialize project structure
+- \`npm run clean\`: Clear user data (use with caution!)
+
+## 🔧 Configuration
+
+Environment variables in \`.env\`:
+- \`JWT_SECRET\`: Secret key for JWT tokens
+- \`ENCRYPTION_KEY\`: Key for encrypting credentials
 - \`PORT\`: Server port (default: 3000)
+- \`NODE_ENV\`: Environment (development/production)
 
-## API Endpoints
+## 📝 API Endpoints
 
-### Authentication
-- \`POST /api/register\` - Register new user
-- \`POST /api/login\` - Login user
+### Public Endpoints
+- \`POST /api/register\`: Register new user
+- \`POST /api/login\`: User login
 
-### Protected Routes (require JWT token)
-- \`GET /api/stats\` - Get user statistics
-- \`POST /api/forum-credentials\` - Save encrypted forum credentials
-- \`POST /api/start-bot\` - Start user's bot
-- \`POST /api/stop-bot\` - Stop user's bot
+### Protected Endpoints (require JWT)
+- \`GET /api/stats\`: Get user statistics
+- \`POST /api/forum-credentials\`: Save encrypted credentials
+- \`POST /api/start-bot\`: Start user's bot
+- \`POST /api/stop-bot\`: Stop user's bot
 
-## Development
+## ⚠️ Important Notes
 
-For development with auto-restart:
-\`\`\`bash
-npm run dev
-\`\`\`
+1. **Never commit \`.env\` file** to version control
+2. **Backup \`data/\` directory** regularly
+3. **Use HTTPS in production** for security
+4. **Monitor server logs** for suspicious activity
+5. **Update dependencies** regularly for security patches
 
-## Security Notes
+## 🚀 Deployment Tips
 
-1. **Never commit sensitive files**: The .gitignore excludes user data and environment files
-2. **Change default keys in production**: Regenerate JWT_SECRET and ENCRYPTION_KEY for production
-3. **Use HTTPS in production**: Always use SSL/TLS in production environments
-4. **Regular backups**: Backup user_stats/ directory regularly
-5. **Monitor logs**: Check server logs for suspicious activity
+For production deployment:
+1. Use a process manager like PM2
+2. Set up reverse proxy with nginx
+3. Enable HTTPS with SSL certificates
+4. Consider using a database instead of JSON files
+5. Implement rate limiting and monitoring
 
-## Deployment Considerations
-
-1. **Database**: Consider using a proper database (PostgreSQL, MongoDB) instead of JSON files for production
-2. **Redis**: Use Redis for session storage in multi-instance deployments
-3. **Load Balancing**: Use a reverse proxy (nginx) for load balancing
-4. **Process Management**: Use PM2 or similar for process management
-5. **Monitoring**: Implement proper logging and monitoring
-
-## Troubleshooting
-
-- **Bot won't start**: Check that forum credentials are saved correctly
-- **Login issues**: Verify JWT_SECRET is consistent
-- **Permission errors**: Ensure write permissions for user_stats/ directory
-- **Port conflicts**: Change PORT in .env file if 3000 is in use
-
-## License
+## 📄 License
 
 MIT License - See LICENSE file for details
+
+## 🤝 Contributing
+
+Contributions are welcome! Please create a pull request with your changes.
+
+## 🐛 Troubleshooting
+
+- **Bot won't start**: Check forum credentials are saved
+- **Login issues**: Verify JWT_SECRET hasn't changed
+- **Permission errors**: Check write permissions for data/ directory
+- **Port conflicts**: Change PORT in .env file
 `;
 
-        await fs.writeFile('README.md', readmeContent);
-        console.log('✓ Created README.md with setup instructions');
+        await createFile('README.md', readmeContent);
 
-        console.log('\n🎉 Setup completed successfully!');
-        console.log('\nNext steps:');
-        console.log('1. Run "npm start" to start the server');
-        console.log('2. Open http://localhost:3000 in your browser');
-        console.log('3. Register a new account to get started');
-        console.log('\n⚠️  Important: Keep your .env file secure and never commit it to version control!');
+        // Migration message for existing files
+        console.log('\n📦 Setup completed successfully!');
+        console.log('\n⚠️  IMPORTANT: Manual migration required for existing files:');
+        console.log('\n1. Move your existing files to the new structure:');
+        console.log('   - Move server.js → server/server.js');
+        console.log('   - Move hv_bot_module.js → bot/hv_bot_module.js');
+        console.log('   - Create server/utils/encryption.js (with the fixed code)');
+        console.log('   - Split HTML files and move to public/pages/');
+        console.log('   - Extract CSS to public/css/');
+        console.log('   - Extract JS to public/js/');
+        console.log('\n2. Update the server files to use the new encryption module');
+        console.log('\n3. Update HTML files to reference the new CSS/JS paths');
+        console.log('\n4. Run "npm install" to ensure all dependencies are installed');
+        console.log('\n5. Run "npm start" to start the server');
+        console.log('\n✨ Your secure keys have been generated in .env file');
+        console.log('🔒 Keep your .env file secure and never commit it!');
 
     } catch (error) {
-        console.error('Setup failed:', error.message);
+        console.error('❌ Setup failed:', error.message);
         process.exit(1);
     }
 }
 
+// Run setup
 setup();
