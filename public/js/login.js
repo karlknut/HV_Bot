@@ -1,163 +1,200 @@
-document.addEventListener("DOMContentLoaded", () => {
-  // Check if already logged in
-  if (Auth.isAuthenticated()) {
-    window.location.href = "/dashboard";
-    return;
-  }
+      // Starfield animation
+      const canvas = document.getElementById('starfield');
+      const ctx = canvas.getContext('2d');
+      
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+      
+      const stars = [];
+      const numStars = 200;
+      
+      for (let i = 0; i < numStars; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          radius: Math.random() * 2,
+          opacity: Math.random(),
+          speed: Math.random() * 0.5 + 0.1
+        });
+      }
+      
+      function drawStars() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        stars.forEach(star => {
+          ctx.beginPath();
+          ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+          ctx.fill();
+          
+          star.opacity += (Math.random() - 0.5) * 0.02;
+          star.opacity = Math.max(0.1, Math.min(1, star.opacity));
+        });
+        
+        requestAnimationFrame(drawStars);
+      }
+      
+      drawStars();
 
-  // Tab switching
-  const tabs = document.querySelectorAll(".tab");
-  const forms = document.querySelectorAll(".form");
-
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const targetTab = tab.dataset.tab;
-
-      // Update active states
-      tabs.forEach((t) => t.classList.remove("active"));
-      forms.forEach((f) => f.classList.remove("active"));
-
-      tab.classList.add("active");
-      document
-        .querySelector(`form[data-tab="${targetTab}"]`)
-        .classList.add("active");
-
-      // Clear any messages
-      document.getElementById("message").style.display = "none";
-    });
-  });
-
-  // Login form handler
-  document.getElementById("loginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const username = document.getElementById("loginUsername").value.trim();
-    const password = document.getElementById("loginPassword").value;
-
-    if (!username || !password) {
-      UI.showMessage("Please fill in all fields");
-      return;
-    }
-
-    UI.showLoading(true);
-
-    try {
-      console.log("Attempting login for:", username);
-
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Utility functions
+      const UI = {
+        showMessage: (message, type = 'error') => {
+          const messageEl = document.getElementById('message');
+          messageEl.textContent = message;
+          messageEl.className = `message ${type}`;
+          messageEl.style.display = 'block';
+          
+          if (type === 'success') {
+            setTimeout(() => {
+              messageEl.style.display = 'none';
+            }, 3000);
+          }
         },
-        body: JSON.stringify({ username, password }),
-      });
+        
+        showLoading: (show) => {
+          const loading = document.getElementById('loading');
+          loading.style.display = show ? 'flex' : 'none';
+        }
+      };
 
-      console.log("Login response status:", response.status);
+      const Auth = {
+        setAuth: (token, user) => {
+          // In a real app, you'd use localStorage here
+          // For demo purposes, we'll simulate storage
+          window.authData = { token, user };
+        },
+        
+        getToken: () => {
+          return window.authData?.token || null;
+        },
+        
+        getUser: () => {
+          return window.authData?.user || null;
+        },
+        
+        isAuthenticated: () => {
+          return !!window.authData?.token;
+        }
+      };
 
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: "Login failed" }));
-        UI.showMessage(errorData.error || "Login failed");
-        UI.showLoading(false);
-        return;
-      }
+      // Initialize page
+      document.addEventListener("DOMContentLoaded", () => {
+        // Check if already logged in
+        if (Auth.isAuthenticated()) {
+          // In a real app, redirect to dashboard
+          UI.showMessage("Already logged in!", "success");
+          return;
+        }
 
-      const result = await response.json();
-      console.log("Login result:", result);
+        // Tab switching
+        const tabs = document.querySelectorAll(".tab");
+        const forms = document.querySelectorAll(".form");
 
-      if (result.success && result.token && result.user) {
-        console.log("Login successful, setting auth data");
+        tabs.forEach((tab) => {
+          tab.addEventListener("click", () => {
+            const targetTab = tab.dataset.tab;
 
-        // Set authentication data
-        Auth.setAuth(result.token, result.user);
+            // Update active states
+            tabs.forEach((t) => t.classList.remove("active"));
+            forms.forEach((f) => f.classList.remove("active"));
 
-        // Verify the data was set correctly
-        const storedToken = Auth.getToken();
-        const storedUser = Auth.getUser();
-        console.log("Stored token:", storedToken ? "Present" : "Missing");
-        console.log("Stored user:", storedUser);
+            tab.classList.add("active");
+            document.querySelector(`form[data-tab="${targetTab}"]`).classList.add("active");
 
-        UI.showMessage("Login successful! Redirecting...", "success");
-
-        // Short delay to show success message, then redirect
-        setTimeout(() => {
-          console.log("Redirecting to dashboard...");
-          window.location.href = "/dashboard";
-        }, 1000);
-      } else {
-        console.error("Invalid login response:", result);
-        UI.showMessage(result.error || "Login failed - invalid response");
-        UI.showLoading(false);
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      UI.showMessage("Network error. Please try again.");
-      UI.showLoading(false);
-    }
-  });
-
-  // Register form handler
-  document
-    .getElementById("registerForm")
-    .addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      const username = document.getElementById("registerUsername").value.trim();
-      const password = document.getElementById("registerPassword").value;
-      const confirmPassword = document.getElementById("confirmPassword").value;
-
-      if (!username || !password || !confirmPassword) {
-        UI.showMessage("Please fill in all fields");
-        return;
-      }
-
-      if (password !== confirmPassword) {
-        UI.showMessage("Passwords do not match");
-        return;
-      }
-
-      if (password.length < 8) {
-        UI.showMessage("Password must be at least 8 characters long");
-        return;
-      }
-
-      UI.showLoading(true);
-
-      try {
-        console.log("Attempting registration for:", username);
-
-        const response = await fetch("/api/register", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ username, password }),
+            // Clear any messages
+            document.getElementById("message").style.display = "none";
+          });
         });
 
-        const result = await response.json();
-        console.log("Registration result:", result);
+        // Login form handler
+        document.getElementById("loginForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
 
-        if (result.success) {
-          UI.showMessage(
-            "Registration successful! You can now login.",
-            "success",
-          );
+          const username = document.getElementById("loginUsername").value.trim();
+          const password = document.getElementById("loginPassword").value;
 
-          // Switch to login tab after successful registration
-          setTimeout(() => {
-            document.querySelector('.tab[data-tab="login"]').click();
-            document.getElementById("loginUsername").value = username;
-            document.getElementById("loginUsername").focus();
-          }, 1500);
-        } else {
-          UI.showMessage(result.error || "Registration failed");
-        }
-      } catch (error) {
-        console.error("Registration error:", error);
-        UI.showMessage("Network error. Please try again.");
-      }
+          if (!username || !password) {
+            UI.showMessage("Please fill in all fields");
+            return;
+          }
 
-      UI.showLoading(false);
-    });
-});
+          UI.showLoading(true);
+
+          try {
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Demo: accept any username/password combo for testing
+            if (username && password) {
+              const mockResult = {
+                success: true,
+                token: 'demo-token-' + Date.now(),
+                user: { username: username, id: 1 }
+              };
+
+              Auth.setAuth(mockResult.token, mockResult.user);
+              UI.showMessage("Login successful! Welcome back!", "success");
+              
+              setTimeout(() => {
+                UI.showMessage("In a real app, you'd be redirected to the dashboard now.", "success");
+              }, 2000);
+            } else {
+              UI.showMessage("Invalid credentials");
+            }
+          } catch (error) {
+            UI.showMessage("Network error. Please try again.");
+          }
+
+          UI.showLoading(false);
+        });
+
+        // Register form handler
+        document.getElementById("registerForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const username = document.getElementById("registerUsername").value.trim();
+          const password = document.getElementById("registerPassword").value;
+          const confirmPassword = document.getElementById("confirmPassword").value;
+
+          if (!username || !password || !confirmPassword) {
+            UI.showMessage("Please fill in all fields");
+            return;
+          }
+
+          if (password !== confirmPassword) {
+            UI.showMessage("Passwords do not match");
+            return;
+          }
+
+          if (password.length < 8) {
+            UI.showMessage("Password must be at least 8 characters long");
+            return;
+          }
+
+          UI.showLoading(true);
+
+          try {
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Demo: always succeed for testing
+            UI.showMessage("Registration successful! You can now login.", "success");
+
+            // Switch to login tab after successful registration
+            setTimeout(() => {
+              document.querySelector('.tab[data-tab="login"]').click();
+              document.getElementById("loginUsername").value = username;
+              document.getElementById("loginUsername").focus();
+            }, 1500);
+          } catch (error) {
+            UI.showMessage("Network error. Please try again.");
+          }
+
+          UI.showLoading(false);
+        });
+      });
