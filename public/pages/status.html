@@ -1,113 +1,319 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HV Forum Bot - Status</title>
-    <link rel="stylesheet" href="/css/common.css">
-    <link rel="stylesheet" href="/css/status.css">
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <a href="/" class="back-button">← Back to Main</a>
-            <h1>Bot Status Dashboard</h1>
+    <link rel="stylesheet" href="/css/common.css" />
+    <link rel="stylesheet" href="/css/status.css" />
+    <style>
+      /* Override problematic header styles */
+      body {
+        padding-top: 65px;
+      }
+
+      .status-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      .page-title {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .page-title h2 {
+        font-size: 2rem;
+        color: white;
+        margin-bottom: 0.5rem;
+      }
+
+      .credentials-status-card {
+        background: linear-gradient(
+          135deg,
+          rgba(59, 130, 246, 0.1) 0%,
+          rgba(37, 99, 235, 0.05) 100%
+        );
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .credentials-status-info {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+      }
+
+      .status-connected {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #10b981;
+        font-weight: 600;
+      }
+
+      .status-disconnected {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #ef4444;
+        font-weight: 600;
+      }
+
+      .change-credentials-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.7);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+      }
+
+      .change-credentials-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        transform: translateY(-1px);
+      }
+
+      /* Hide old credentials form */
+      #credentialsForm {
+        display: none !important;
+      }
+
+      /* New credentials modal form */
+      .credentials-modal-form {
+        display: none;
+        padding: 1rem 0;
+      }
+
+      .form-row {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .form-group {
+        flex: 1;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+      }
+
+      .form-group input {
+        width: 100%;
+        padding: 0.7rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.3);
+        color: white;
+        font-size: 0.95rem;
+      }
+
+      .form-group input:focus {
+        border-color: #3b82f6;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+      }
+
+      .controls {
+        margin-bottom: 2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="starfield"></canvas>
+
+    <!-- Professional Header -->
+    <div class="header">
+      <div class="header-left">
+        <div class="header-logo">
+          <div class="header-logo-icon">HV</div>
+          <h1>Forum Bot</h1>
         </div>
-
-        <!-- Credentials Section -->
-        <div class="credentials-form" id="credentialsForm">
-            <h3>Bot Credentials</h3>
-            <p style="color: #ccc; margin-bottom: 1rem;">Set your forum login credentials (stored locally on server)</p>
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" id="username" placeholder="Enter your forum username (Case Sensitive)">
-            </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" placeholder="Enter your forum password">
-            </div>
-            <button class="save-button" onclick="saveCredentials()">Save Credentials</button>
+        <nav class="header-nav">
+          <a href="/dashboard" class="nav-link">Dashboard</a>
+          <a href="/status" class="nav-link active">Status</a>
+        </nav>
+      </div>
+      <div class="header-right">
+        <div class="user-badge">
+          <div class="user-avatar" id="userAvatar">--</div>
+          <div class="user-info-text">
+            <span class="user-label">Logged in as</span>
+            <span class="user-name" id="userName">Loading...</span>
+          </div>
         </div>
-
-        <!-- Controls Section -->
-        <div class="controls">
-            <button class="control-button" onclick="refreshStats()">Refresh Stats</button>
-            <button class="control-button" onclick="toggleLogs()">Toggle Live Logs</button>
-            <button class="control-button" id="emergencyStop" onclick="emergencyStop()" disabled>Emergency Stop</button>
-        </div>
-
-        <!-- Stats Grid -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>Bot Status</h3>
-                <div class="stat-value">
-                    <span class="status-indicator" id="botStatus">Loading...</span>
-                </div>
-                <div class="stat-label">Current state</div>
-            </div>
-
-            <div class="stat-card">
-                <h3>Total Runs</h3>
-                <div class="stat-value" id="totalRuns">-</div>
-                <div class="stat-label">Since deployment</div>
-            </div>
-
-            <div class="stat-card">
-                <h3>Posts Updated</h3>
-                <div class="stat-value" id="postsUpdated">-</div>
-                <div class="stat-label">Total posts refreshed</div>
-            </div>
-
-            <div class="stat-card">
-                <h3>Comments Added</h3>
-                <div class="stat-value" id="commentsAdded">-</div>
-                <div class="stat-label">Total 👍 comments</div>
-            </div>
-
-            <div class="stat-card">
-                <h3>Last Run</h3>
-                <div class="stat-value" id="lastRun">-</div>
-                <div class="stat-label" id="lastRunStatus">Status unknown</div>
-            </div>
-
-            <div class="stat-card">
-                <h3>Success Rate</h3>
-                <div class="stat-value" id="successRate">-</div>
-                <div class="stat-label">Completed runs / Total runs</div>
-            </div>
-        </div>
-
-        <!-- Live Logs Section -->
-        <div class="log-section" id="logSection">
-            <h2>Live Bot Output</h2>
-            <div class="log-container" id="logContainer">
-                <div class="log-entry info">Waiting for bot output...</div>
-            </div>
-        </div>
-
-        <!-- Run History Section -->
-        <div class="history-section">
-            <h2>Run History</h2>
-            <table class="history-table" id="historyTable">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Status</th>
-                        <th>Posts Updated</th>
-                        <th>Comments Added</th>
-                        <th>Duration</th>
-                    </tr>
-                </thead>
-                <tbody id="historyTableBody">
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: #666;">Loading history...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <button class="logout-btn" id="logoutBtn">Logout</button>
+      </div>
     </div>
 
-    <script src="/js/starfield.js"></script>
+    <div class="status-container">
+      <div class="page-title">
+        <h2>Bot Status & Analytics</h2>
+        <p style="color: rgba(255, 255, 255, 0.6)">
+          Monitor your bot's performance and activity
+        </p>
+      </div>
+
+      <!-- Credentials Status Card -->
+      <div class="credentials-status-card" id="credentialsStatusCard">
+        <div class="credentials-status-info">
+          <div id="connectionStatus" class="status-connected">
+            <span class="status-dot"></span>
+            <span>Connected to Forum</span>
+          </div>
+          <div class="credential-item">
+            <span class="credential-label">Forum User:</span>
+            <span class="credential-value" id="forumUserDisplay">---</span>
+          </div>
+        </div>
+        <button class="change-credentials-btn" id="changeCredentialsBtn">
+          Change Credentials
+        </button>
+      </div>
+
+      <!-- Controls Section -->
+      <div class="controls">
+        <button class="control-button" onclick="refreshStats()">
+          <span>🔄</span> Refresh Stats
+        </button>
+        <button class="control-button" onclick="toggleLogs()">
+          <span>📋</span> Toggle Live Logs
+        </button>
+        <button
+          class="control-button"
+          id="emergencyStop"
+          onclick="emergencyStop()"
+          disabled
+        >
+          <span>⛔</span> Emergency Stop
+        </button>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>Bot Status</h3>
+          <div class="stat-value">
+            <span class="status-indicator" id="botStatus">Loading...</span>
+          </div>
+          <div class="stat-label">Current state</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>Total Runs</h3>
+          <div class="stat-value" id="totalRuns">-</div>
+          <div class="stat-label">Since deployment</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>Posts Updated</h3>
+          <div class="stat-value" id="postsUpdated">-</div>
+          <div class="stat-label">Total posts refreshed</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>Comments Added</h3>
+          <div class="stat-value" id="commentsAdded">-</div>
+          <div class="stat-label">Total 👍 comments</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>Last Run</h3>
+          <div class="stat-value" id="lastRun">-</div>
+          <div class="stat-label" id="lastRunStatus">Status unknown</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>Success Rate</h3>
+          <div class="stat-value" id="successRate">-</div>
+          <div class="stat-label">Completed runs / Total runs</div>
+        </div>
+      </div>
+
+      <!-- Live Logs Section -->
+      <div class="log-section" id="logSection">
+        <h2>Live Bot Output</h2>
+        <div class="log-container" id="logContainer">
+          <div class="log-entry info">Waiting for bot output...</div>
+        </div>
+      </div>
+
+      <!-- Run History Section -->
+      <div class="history-section">
+        <h2>Run History</h2>
+        <table class="history-table" id="historyTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Posts Updated</th>
+              <th>Comments Added</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+            <tr>
+              <td colspan="5" style="text-align: center; color: #666">
+                Loading history...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modalOverlay" class="modal-overlay">
+      <div class="modal-container">
+        <div class="modal-header">
+          <div id="modalIcon" class="modal-icon">
+            <span id="modalIconSymbol">?</span>
+          </div>
+          <h2 id="modalTitle" class="modal-title">Confirmation</h2>
+        </div>
+        <div id="modalBody" class="modal-body">
+          Are you sure you want to proceed?
+        </div>
+        <div id="modalActions" class="modal-actions">
+          <button id="modalCancel" class="modal-btn modal-btn-secondary">
+            Cancel
+          </button>
+          <button id="modalConfirm" class="modal-btn modal-btn-primary">
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="notificationToast" class="notification-toast">
+      <div id="toastIcon" class="notification-icon">
+        <span id="toastIconSymbol">✓</span>
+      </div>
+      <div class="notification-content">
+        <div id="toastTitle" class="notification-title">Success</div>
+        <div id="toastMessage" class="notification-message">
+          Operation completed
+        </div>
+      </div>
+      <button id="toastClose" class="notification-close">×</button>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/modal.js"></script>
     <script src="/js/status.js"></script>
-</body>
+  </body>
 </html>

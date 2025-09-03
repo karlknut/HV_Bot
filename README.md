@@ -23,16 +23,19 @@ A secure, multi-user web application for automating forum activities with encryp
 ## Setup Instructions
 
 1. **Install Dependencies**
+
    ```bash
    npm install
    ```
 
 2. **Run Setup Script**
+
    ```bash
    npm run setup
    ```
 
 3. **Start the Application**
+
    ```bash
    npm start
    ```
@@ -91,10 +94,12 @@ The setup script automatically generates these in `.env`:
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/register` - Register new user
 - `POST /api/login` - Login user
 
 ### Protected Routes (require JWT token)
+
 - `GET /api/stats` - Get user statistics
 - `POST /api/forum-credentials` - Save encrypted forum credentials
 - `POST /api/start-bot` - Start user's bot
@@ -103,6 +108,7 @@ The setup script automatically generates these in `.env`:
 ## Development
 
 For development with auto-restart:
+
 ```bash
 npm run dev
 ```

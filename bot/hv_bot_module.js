@@ -13,7 +13,7 @@ async function runForumBot(username, password, updateCallback = console.log) {
     browser = await puppeteer.launch({
       headless: true, // Run headless for server deployment
       defaultViewport: null,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'] // For server compatibility
+      args: ["--no-sandbox", "--disable-setuid-sandbox"], // For server compatibility
     });
 
     const page = await browser.newPage();
@@ -312,7 +312,9 @@ async function runForumBot(username, password, updateCallback = console.log) {
         }
 
         if (!saveButton) {
-          updateCallback(`Save button not found for "${thread.title}" - skipping`);
+          updateCallback(
+            `Save button not found for "${thread.title}" - skipping`,
+          );
           continue;
         }
 
@@ -332,7 +334,6 @@ async function runForumBot(username, password, updateCallback = console.log) {
 
         updateCallback(`Updated post in "${thread.title}"`);
         postsUpdated++;
-        
       } catch (error) {
         updateCallback(`Error processing "${thread.title}": ${error.message}`);
       }
@@ -415,7 +416,9 @@ async function runForumBot(username, password, updateCallback = console.log) {
                   buttonText.toLowerCase().includes("postita"))
               ) {
                 submitButton = button;
-                updateCallback(`Found submit button with text: "${buttonText}"`);
+                updateCallback(
+                  `Found submit button with text: "${buttonText}"`,
+                );
                 break;
               }
             }
@@ -448,15 +451,15 @@ async function runForumBot(username, password, updateCallback = console.log) {
 
         updateCallback(`Added comment to "${thread.title}"`);
         commentsAdded++;
-        
       } catch (error) {
-        updateCallback(`Error commenting on "${thread.title}": ${error.message}`);
+        updateCallback(
+          `Error commenting on "${thread.title}": ${error.message}`,
+        );
       }
     }
 
     updateCallback("All accessible threads have been processed!");
     return { postsUpdated, commentsAdded };
-    
   } catch (error) {
     updateCallback("Bot error: " + error.message);
     throw error;

@@ -1,72 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HV Forum Bot - Login</title>
-    <link rel="stylesheet" href="/css/common.css">
-    <link rel="stylesheet" href="/css/login.css">
-</head>
-<body>
+    <link rel="stylesheet" href="/css/modal.css" />
+    <link rel="stylesheet" href="/css/login.css" />
+  </head>
+  <body>
     <canvas id="starfield"></canvas>
 
     <div class="login-container">
-        <div class="logo">
-            <h1>HV Forum Bot</h1>
-            <p>Multi-User Forum Automation</p>
+      <div class="logo">
+        <h1>HV Forum Bot</h1>
+        <p>Forum Automation tool</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Login</button>
+        <button class="tab" data-tab="register">Register</button>
+      </div>
+
+      <div class="message" id="message"></div>
+
+      <!-- Login Form -->
+      <form class="form active" id="loginForm" data-tab="login">
+        <div class="form-group">
+          <label for="loginUsername">Username</label>
+          <input type="text" id="loginUsername" required />
         </div>
-
-        <div class="tabs">
-            <button class="tab active" data-tab="login">Login</button>
-            <button class="tab" data-tab="register">Register</button>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" required />
         </div>
+        <button type="submit" class="btn btn-primary">
+          <span style="position: relative; z-index: 1">Login</span>
+        </button>
+      </form>
 
-        <div class="message" id="message"></div>
-
-        <!-- Login Form -->
-        <form class="form active" id="loginForm" data-tab="login">
-            <div class="form-group">
-                <label for="loginUsername">Username</label>
-                <input type="text" id="loginUsername" required>
-            </div>
-            <div class="form-group">
-                <label for="loginPassword">Password</label>
-                <input type="password" id="loginPassword" required>
-            </div>
-            <button type="submit" class="btn btn-primary">
-                <span style="position: relative; z-index: 1;">Login</span>
-            </button>
-        </form>
-
-        <!-- Register Form -->
-        <form class="form" id="registerForm" data-tab="register">
-            <div class="form-group">
-                <label for="registerUsername">Username</label>
-                <input type="text" id="registerUsername" required>
-            </div>
-            <div class="form-group">
-                <label for="registerPassword">Password</label>
-                <input type="password" id="registerPassword" required>
-                <div class="password-requirements">
-                    Password must be at least 8 characters long
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="confirmPassword">Confirm Password</label>
-                <input type="password" id="confirmPassword" required>
-            </div>
-            <button type="submit" class="btn btn-primary">
-                <span style="position: relative; z-index: 1;">Register</span>
-            </button>
-        </form>
-
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            Processing...
+      <!-- Register Form -->
+      <form class="form" id="registerForm" data-tab="register">
+        <div class="form-group">
+          <label for="registerUsername">Username</label>
+          <input type="text" id="registerUsername" required />
         </div>
+        <div class="form-group">
+          <label for="registerPassword">Password</label>
+          <input type="password" id="registerPassword" required />
+          <div class="password-requirements">
+            Password must be at least 8 characters long
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">Confirm Password</label>
+          <input type="password" id="confirmPassword" required />
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <span style="position: relative; z-index: 1">Register</span>
+        </button>
+      </form>
+
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        Processing...
+      </div>
     </div>
 
     <script src="/js/common.js"></script>
+    <script src="/js/modal"></script>
     <script src="/js/login.js"></script>
-</body>
+  </body>
 </html>

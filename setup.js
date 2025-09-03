@@ -1,50 +1,50 @@
 // setup.js - Creates the new folder structure and configures the application
-const fs = require('fs').promises;
-const path = require('path');
-const crypto = require('crypto');
+const fs = require("fs").promises;
+const path = require("path");
+const crypto = require("crypto");
 
 async function createDirectory(dirPath) {
-    try {
-        await fs.access(dirPath);
-        console.log(`✓ Directory exists: ${dirPath}`);
-    } catch {
-        await fs.mkdir(dirPath, { recursive: true });
-        console.log(`✓ Created directory: ${dirPath}`);
-    }
+  try {
+    await fs.access(dirPath);
+    console.log(`✓ Directory exists: ${dirPath}`);
+  } catch {
+    await fs.mkdir(dirPath, { recursive: true });
+    console.log(`✓ Created directory: ${dirPath}`);
+  }
 }
 
 async function createFile(filePath, content) {
-    try {
-        await fs.access(filePath);
-        console.log(`⚠ File already exists: ${filePath}`);
-    } catch {
-        await fs.writeFile(filePath, content);
-        console.log(`✓ Created file: ${filePath}`);
-    }
+  try {
+    await fs.access(filePath);
+    console.log(`⚠ File already exists: ${filePath}`);
+  } catch {
+    await fs.writeFile(filePath, content);
+    console.log(`✓ Created file: ${filePath}`);
+  }
 }
 
 async function setup() {
-    console.log('🚀 Setting up HV Forum Bot Multi-User Application...\n');
+  console.log("🚀 Setting up HV Forum Bot Multi-User Application...\n");
 
-    try {
-        // Create directory structure
-        console.log('Creating directory structure...');
-        await createDirectory('server');
-        await createDirectory('server/utils');
-        await createDirectory('bot');
-        await createDirectory('public');
-        await createDirectory('public/css');
-        await createDirectory('public/js');
-        await createDirectory('public/pages');
-        await createDirectory('data');
-        await createDirectory('data/user_stats');
+  try {
+    // Create directory structure
+    console.log("Creating directory structure...");
+    await createDirectory("server");
+    await createDirectory("server/utils");
+    await createDirectory("bot");
+    await createDirectory("public");
+    await createDirectory("public/css");
+    await createDirectory("public/js");
+    await createDirectory("public/pages");
+    await createDirectory("data");
+    await createDirectory("data/user_stats");
 
-        // Generate secure environment variables
-        const jwtSecret = crypto.randomBytes(64).toString('hex');
-        const encryptionKey = crypto.randomBytes(32).toString('hex');
+    // Generate secure environment variables
+    const jwtSecret = crypto.randomBytes(64).toString("hex");
+    const encryptionKey = crypto.randomBytes(32).toString("hex");
 
-        // Create .env file
-        const envContent = `# HV Forum Bot Multi-User Configuration
+    // Create .env file
+    const envContent = `# HV Forum Bot Multi-User Configuration
 # Generated on ${new Date().toISOString()}
 
 # JWT Secret for user authentication (keep this secret!)
@@ -60,13 +60,13 @@ PORT=3000
 NODE_ENV=development
 `;
 
-        await createFile('.env', envContent);
+    await createFile(".env", envContent);
 
-        // Create empty users.json
-        await createFile('data/users.json', '{}');
+    // Create empty users.json
+    await createFile("data/users.json", "{}");
 
-        // Create .gitignore
-        const gitignoreContent = `# Dependencies
+    // Create .gitignore
+    const gitignoreContent = `# Dependencies
 node_modules/
 
 # Environment variables
@@ -106,10 +106,10 @@ tmp/
 temp/
 `;
 
-        await createFile('.gitignore', gitignoreContent);
+    await createFile(".gitignore", gitignoreContent);
 
-        // Create README
-        const readmeContent = `# HV Forum Bot - Multi-User Edition
+    // Create README
+    const readmeContent = `# HV Forum Bot - Multi-User Edition
 
 A secure, multi-user web application for automating forum activities with encrypted credential storage.
 
@@ -231,29 +231,34 @@ Contributions are welcome! Please create a pull request with your changes.
 - **Port conflicts**: Change PORT in .env file
 `;
 
-        await createFile('README.md', readmeContent);
+    await createFile("README.md", readmeContent);
 
-        // Migration message for existing files
-        console.log('\n📦 Setup completed successfully!');
-        console.log('\n⚠️  IMPORTANT: Manual migration required for existing files:');
-        console.log('\n1. Move your existing files to the new structure:');
-        console.log('   - Move server.js → server/server.js');
-        console.log('   - Move hv_bot_module.js → bot/hv_bot_module.js');
-        console.log('   - Create server/utils/encryption.js (with the fixed code)');
-        console.log('   - Split HTML files and move to public/pages/');
-        console.log('   - Extract CSS to public/css/');
-        console.log('   - Extract JS to public/js/');
-        console.log('\n2. Update the server files to use the new encryption module');
-        console.log('\n3. Update HTML files to reference the new CSS/JS paths');
-        console.log('\n4. Run "npm install" to ensure all dependencies are installed');
-        console.log('\n5. Run "npm start" to start the server');
-        console.log('\n✨ Your secure keys have been generated in .env file');
-        console.log('🔒 Keep your .env file secure and never commit it!');
-
-    } catch (error) {
-        console.error('❌ Setup failed:', error.message);
-        process.exit(1);
-    }
+    // Migration message for existing files
+    console.log("\n📦 Setup completed successfully!");
+    console.log(
+      "\n⚠️  IMPORTANT: Manual migration required for existing files:",
+    );
+    console.log("\n1. Move your existing files to the new structure:");
+    console.log("   - Move server.js → server/server.js");
+    console.log("   - Move hv_bot_module.js → bot/hv_bot_module.js");
+    console.log("   - Create server/utils/encryption.js (with the fixed code)");
+    console.log("   - Split HTML files and move to public/pages/");
+    console.log("   - Extract CSS to public/css/");
+    console.log("   - Extract JS to public/js/");
+    console.log(
+      "\n2. Update the server files to use the new encryption module",
+    );
+    console.log("\n3. Update HTML files to reference the new CSS/JS paths");
+    console.log(
+      '\n4. Run "npm install" to ensure all dependencies are installed',
+    );
+    console.log('\n5. Run "npm start" to start the server');
+    console.log("\n✨ Your secure keys have been generated in .env file");
+    console.log("🔒 Keep your .env file secure and never commit it!");
+  } catch (error) {
+    console.error("❌ Setup failed:", error.message);
+    process.exit(1);
+  }
 }
 
 // Run setup
