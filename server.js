@@ -28,7 +28,9 @@ let botStates = new Map();
 
 // Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/css', express.static(path.join(__dirname, '..', 'public', 'css')));
+app.use('/js', express.static(path.join(__dirname, '..', 'public', 'js')));
+app.use('/pages', express.static(path.join(__dirname, '..', 'public', 'pages')));
 
 // Authentication middleware
 function authenticateToken(req, res, next) {
@@ -59,7 +61,6 @@ async function loadUsers() {
 }
 
 async function saveUsers(users) {
-    // Ensure data directory exists
     const dataDir = path.dirname(USERS_FILE);
     try {
         await fs.access(dataDir);
@@ -100,8 +101,12 @@ async function saveUserStats(userId, stats) {
     await fs.writeFile(statsFile, JSON.stringify(stats, null, 2));
 }
 
-// Serve pages
+// Serve pages with proper routing
 app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'pages', 'login.html'));
+});
+
+app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'pages', 'login.html'));
 });
 
@@ -113,23 +118,28 @@ app.get('/status', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'pages', 'status.html'));
 });
 
+// Debug page for authentication issues
+app.get('/debug-auth', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'pages', 'debug-auth.html'));
+});
+
 // Authentication routes
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password } = req.body;
         
         if (!username || !password) {
-            return res.status(400).json({ error: 'Username and password required' });
+            return res.status(400).json({ success: false, error: 'Username and password required' });
         }
 
         if (password.length < 8) {
-            return res.status(400).json({ error: 'Password must be at least 8 characters' });
+            return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
         }
 
         const users = await loadUsers();
         
         if (users[username]) {
-            return res.status(400).json({ error: 'Username already exists' });
+            return res.status(400).json({ success: false, error: 'Username already exists' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -146,7 +156,7 @@ app.post('/api/register', async (req, res) => {
         res.json({ success: true, message: 'User registered successfully' });
     } catch (error) {
         console.error('Registration error:', error);
-        res.status(500).json({ error: 'Registration failed: ' + error.message });
+        res.status(500).json({ success: false, error: 'Registration failed: ' + error.message });
     }
 });
 
@@ -158,7 +168,7 @@ app.post('/api/login', async (req, res) => {
         const user = users[username];
         
         if (!user || !await bcrypt.compare(password, user.password)) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
 
         const token = jwt.sign(
@@ -174,7 +184,7 @@ app.post('/api/login', async (req, res) => {
         });
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ error: 'Login failed: ' + error.message });
+        res.status(500).json({ success: false, error: 'Login failed: ' + error.message });
     }
 });
 
@@ -184,10 +194,32 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
         const stats = await loadUserStats(req.user.userId);
         const botState = botStates.get(req.user.userId) || { isRunning: false };
         stats.isRunning = botState.isRunning;
-        res.json(stats);
+        res.json({ success: true, data: stats });
     } catch (error) {
         console.error('Stats error:', error);
-        res.status(500).json({ error: 'Failed to load stats' });
+        res.status(500).json({ success: false, error: 'Failed to load stats' });
+    }
+});
+
+app.get('/api/forum-credentials', authenticateToken, async (req, res) => {
+    try {
+        const users = await loadUsers();
+        const user = users[req.user.username];
+        
+        if (!user || !user.forumCredentials) {
+            return res.json({ success: true, data: { hasCredentials: false } });
+        }
+        
+        res.json({ 
+            success: true, 
+            data: { 
+                hasCredentials: true,
+                lastUpdated: user.forumCredentials.updatedAt
+            }
+        });
+    } catch (error) {
+        console.error('Credentials fetch error:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch credentials status' });
     }
 });
 
@@ -196,14 +228,14 @@ app.post('/api/forum-credentials', authenticateToken, async (req, res) => {
         const { forumUsername, forumPassword } = req.body;
         
         if (!forumUsername || !forumPassword) {
-            return res.status(400).json({ error: 'Forum username and password required' });
+            return res.status(400).json({ success: false, error: 'Forum username and password required' });
         }
 
         const users = await loadUsers();
         const user = users[req.user.username];
         
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({ success: false, error: 'User not found' });
         }
 
         // Encrypt forum credentials using the fixed encryption
@@ -218,7 +250,7 @@ app.post('/api/forum-credentials', authenticateToken, async (req, res) => {
         res.json({ success: true, message: 'Forum credentials saved successfully' });
     } catch (error) {
         console.error('Credentials save error:', error);
-        res.status(500).json({ error: 'Failed to save credentials: ' + error.message });
+        res.status(500).json({ success: false, error: 'Failed to save credentials: ' + error.message });
     }
 });
 

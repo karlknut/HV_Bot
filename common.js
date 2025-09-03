@@ -1,4 +1,4 @@
-// Starfield Animation
+// Common JavaScript functionality
 class StarfieldAnimation {
     constructor(canvasId = 'starfield') {
         this.canvas = document.getElementById(canvasId);
@@ -12,7 +12,6 @@ class StarfieldAnimation {
         this.init();
         this.animate();
         
-        // Handle resize
         window.addEventListener('resize', () => this.handleResize());
     }
     
@@ -69,46 +68,100 @@ class StarfieldAnimation {
     }
 }
 
-// Authentication utilities
+// Enhanced Authentication utilities
 class Auth {
     static getToken() {
-        return localStorage.getItem('token');
+        return localStorage.getItem('hvbot_token');
     }
     
     static getUser() {
-        const userData = localStorage.getItem('user');
-        return userData ? JSON.parse(userData) : null;
+        const userData = localStorage.getItem('hvbot_user');
+        try {
+            return userData ? JSON.parse(userData) : null;
+        } catch (error) {
+            console.error('Error parsing user data:', error);
+            localStorage.removeItem('hvbot_user');
+            return null;
+        }
     }
     
     static setAuth(token, user) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
+        console.log('Setting auth - Token:', token ? 'Present' : 'Missing', 'User:', user);
+        localStorage.setItem('hvbot_token', token);
+        localStorage.setItem('hvbot_user', JSON.stringify(user));
     }
     
     static clearAuth() {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        console.log('Clearing authentication data');
+        localStorage.removeItem('hvbot_token');
+        localStorage.removeItem('hvbot_user');
     }
     
     static isAuthenticated() {
-        return !!this.getToken();
+        const token = this.getToken();
+        console.log('Checking authentication - Token present:', !!token);
+        
+        if (!token) {
+            console.log('No token found');
+            return false;
+        }
+        
+        try {
+            // Split JWT token and decode payload
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                console.log('Invalid token format');
+                this.clearAuth();
+                return false;
+            }
+            
+            const payload = JSON.parse(atob(parts[1]));
+            const currentTime = Date.now() / 1000;
+            const isValid = payload.exp > currentTime;
+            
+            console.log('Token validation - Expires:', new Date(payload.exp * 1000), 'Valid:', isValid);
+            
+            if (!isValid) {
+                console.log('Token expired, clearing auth');
+                this.clearAuth();
+                return false;
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Token validation error:', error);
+            this.clearAuth();
+            return false;
+        }
     }
     
     static checkAuth() {
-        if (!this.isAuthenticated()) {
-            window.location.href = '/';
+        console.log('Checking authentication status');
+        const isAuth = this.isAuthenticated();
+        
+        if (!isAuth) {
+            console.log('Not authenticated, redirecting to login');
+            this.redirectToLogin();
             return false;
         }
+        
+        console.log('Authentication check passed');
         return true;
     }
     
     static logout() {
+        console.log('Logging out user');
         this.clearAuth();
+        this.redirectToLogin();
+    }
+    
+    static redirectToLogin() {
+        console.log('Redirecting to login page');
         window.location.href = '/';
     }
 }
 
-// API utilities
+// Enhanced API utilities
 class API {
     static async request(url, options = {}) {
         const token = Auth.getToken();
@@ -132,25 +185,29 @@ class API {
         try {
             const response = await fetch(url, finalOptions);
             
-            // Handle auth errors
             if (response.status === 401 || response.status === 403) {
                 Auth.logout();
-                return null;
+                return { error: 'Authentication required' };
+            }
+            
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Server returned non-JSON response');
             }
             
             const data = await response.json();
-            return data;
+            return { success: response.ok, data, status: response.status };
         } catch (error) {
             console.error('API request error:', error);
-            throw error;
+            return { success: false, error: error.message };
         }
     }
     
-    static get(url) {
+    static async get(url) {
         return this.request(url, { method: 'GET' });
     }
     
-    static post(url, data) {
+    static async post(url, data) {
         return this.request(url, {
             method: 'POST',
             body: JSON.stringify(data)
@@ -158,18 +215,23 @@ class API {
     }
 }
 
-// WebSocket Manager
-class WebSocketManager {
-    constructor(onMessage) {
-        this.ws = null;
-        this.onMessage = onMessage;
-        this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 10;
-        this.reconnectDelay = 3000;
-        this.isIntentionallyClosed = false;
+// Enhanced WebSocket Manager
+class WS {
+    static ws = null;
+    static reconnectAttempts = 0;
+    static maxReconnectAttempts = 10;
+    static reconnectDelay = 3000;
+    static isIntentionallyClosed = false;
+    static messageHandler = null;
+
+    static init(onMessage) {
+        this.messageHandler = onMessage;
+        this.connect();
     }
     
-    connect() {
+    static connect() {
+        if (!Auth.isAuthenticated()) return;
+        
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         this.ws = new WebSocket(`${protocol}//${window.location.host}`);
         
@@ -177,7 +239,6 @@ class WebSocketManager {
             console.log('WebSocket connected');
             this.reconnectAttempts = 0;
             
-            // Authenticate the connection
             const token = Auth.getToken();
             if (token) {
                 this.send({ type: 'auth', token });
@@ -187,8 +248,8 @@ class WebSocketManager {
         this.ws.onmessage = (event) => {
             try {
                 const message = JSON.parse(event.data);
-                if (this.onMessage) {
-                    this.onMessage(message);
+                if (this.messageHandler) {
+                    this.messageHandler(message);
                 }
             } catch (error) {
                 console.error('WebSocket message parse error:', error);
@@ -210,13 +271,13 @@ class WebSocketManager {
         };
     }
     
-    send(data) {
+    static send(data) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(data));
         }
     }
     
-    close() {
+    static close() {
         this.isIntentionallyClosed = true;
         if (this.ws) {
             this.ws.close();
@@ -224,7 +285,7 @@ class WebSocketManager {
     }
 }
 
-// UI Utilities
+// Enhanced UI Utilities
 class UI {
     static showMessage(message, type = 'error', elementId = 'message') {
         const messageEl = document.getElementById(elementId);
@@ -245,16 +306,67 @@ class UI {
             loadingEl.style.display = show ? 'block' : 'none';
         }
         
-        // Disable all submit buttons while loading
-        document.querySelectorAll('button[type="submit"], .btn').forEach(btn => {
+        document.querySelectorAll('button[type="submit"], .btn, .control-button, .save-button').forEach(btn => {
             btn.disabled = show;
         });
+    }
+    
+    static updateButtonState(buttonId, disabled, disabledText, enabledText) {
+        const button = document.getElementById(buttonId);
+        if (button) {
+            button.disabled = disabled;
+            const span = button.querySelector('span') || button;
+            span.textContent = disabled ? disabledText : enabledText;
+        }
     }
     
     static formatDate(dateString) {
         if (!dateString) return 'Never';
         const date = new Date(dateString);
         return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    }
+    
+    static showRefreshIndicator(elementId = 'refreshIndicator') {
+        const indicator = document.getElementById(elementId) || this.createRefreshIndicator();
+        indicator.classList.add('show');
+        setTimeout(() => indicator.classList.remove('show'), 2000);
+    }
+    
+    static createRefreshIndicator() {
+        const indicator = document.createElement('span');
+        indicator.id = 'refreshIndicator';
+        indicator.className = 'refresh-indicator';
+        indicator.textContent = '✓ Updated';
+        document.body.appendChild(indicator);
+        return indicator;
+    }
+}
+
+// Statistics utilities
+class Stats {
+    static formatStatsDisplay(stats) {
+        return {
+            totalRuns: stats.totalRuns || 0,
+            totalPostsUpdated: stats.totalPostsUpdated || 0,
+            totalCommentsAdded: stats.totalCommentsAdded || 0,
+            lastRun: stats.lastRunDate ? this.formatShortDate(stats.lastRunDate) : 'Never',
+            lastRunStatus: stats.lastRunStatus || 'Unknown',
+            isRunning: stats.isRunning || false
+        };
+    }
+    
+    static formatShortDate(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
     }
 }
 
