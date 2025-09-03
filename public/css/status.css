@@ -1,284 +1,325 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* status.css - Status page specific styles */
+
+.status-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    position: relative;
+    z-index: 2;
 }
 
-body {
-  background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 50%, #0c0c0c 100%);
-  min-height: 100vh;
-  font-family: "Arial", sans-serif;
-  color: white;
-  padding: 2rem;
+/* Page Title */
+.page-title {
+    text-align: center;
+    margin-bottom: 2rem;
+    animation: fadeIn 0.8s ease-out;
 }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
+.page-title h2 {
+    font-size: 2rem;
+    color: white;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
 }
 
-.back-button {
-  background: linear-gradient(135deg, #666 0%, #555 100%);
-  border: none;
-  border-radius: 25px;
-  padding: 0.5rem 1.5rem;
-  color: white;
-  text-decoration: none;
-  display: inline-block;
-  transition: all 0.3s ease;
-  margin-bottom: 2rem;
+.page-subtitle {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.1rem;
 }
 
-.back-button:hover {
-  background: linear-gradient(135deg, #777 0%, #666 100%);
-  transform: translateY(-2px);
+/* Credentials Status Card */
+.credentials-status-card {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    animation: slideInFromLeft 0.8s ease-out;
 }
 
+.credentials-status-info {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.status-connected {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #10b981;
+    font-weight: 600;
+}
+
+.status-disconnected {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.change-credentials-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.change-credentials-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    transform: translateY(-1px);
+}
+
+/* Controls Section */
+.controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    animation: slideInFromRight 0.8s ease-out;
+}
+
+.control-button {
+    background: linear-gradient(135deg, #4834d4 0%, #686de0 100%);
+    border: none;
+    border-radius: 25px;
+    padding: 0.7rem 1.5rem;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+
+.control-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(72, 52, 212, 0.4);
+}
+
+.control-button:disabled {
+    background: rgba(100, 100, 100, 0.5);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.control-button.control-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.control-button.control-danger:hover:not(:disabled) {
+    box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+}
+
+.control-icon {
+    font-size: 1.1rem;
+}
+
+/* Stats Grid */
 .stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-  margin-bottom: 3rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+    animation: fadeIn 0.8s ease-out 0.3s backwards;
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
-  border: 2px solid #444;
-  border-radius: 15px;
-  padding: 1.5rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  transition: all 0.3s ease;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    border: 2px solid #444;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
-  border-color: #666;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+    transform: translateY(-5px);
+    border-color: #666;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
 }
 
 .stat-card h3 {
-  color: #ff6b6b;
-  margin-bottom: 1rem;
-  font-size: 1.2rem;
+    color: #ff6b6b;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
 }
 
 .stat-value {
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: white;
 }
 
 .stat-label {
-  color: #ccc;
-  font-size: 0.9rem;
+    color: #ccc;
+    font-size: 0.9rem;
 }
 
-.status-indicator {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-weight: bold;
-  font-size: 0.9rem;
+/* Log Section */
+.log-section {
+    margin-top: 3rem;
+    display: none;
+    animation: slideUp 0.4s ease;
 }
 
-.status-running {
-  background: rgba(255, 107, 107, 0.9);
-  color: white;
+.log-section.show {
+    display: block;
 }
 
-.status-idle {
-  background: rgba(50, 205, 50, 0.9);
-  color: white;
+.log-section h2 {
+    color: #4834d4;
+    margin-bottom: 1rem;
+    font-size: 1.8rem;
 }
 
-.status-error {
-  background: rgba(255, 69, 58, 0.9);
-  color: white;
+.log-container {
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
 }
 
+.log-entry {
+    margin-bottom: 0.5rem;
+    padding: 0.25rem;
+    border-radius: 3px;
+    line-height: 1.4;
+}
+
+.log-entry.output {
+    color: #00ff00;
+}
+
+.log-entry.error {
+    color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.log-entry.info {
+    color: #4834d4;
+}
+
+/* History Section */
 .history-section {
-  margin-top: 3rem;
+    margin-top: 3rem;
+    animation: fadeIn 0.8s ease-out 0.5s backwards;
 }
 
 .history-section h2 {
-  color: #ff6b6b;
-  margin-bottom: 1.5rem;
-  font-size: 1.8rem;
+    color: #ff6b6b;
+    margin-bottom: 1.5rem;
+    font-size: 1.8rem;
 }
 
 .history-table {
-  width: 100%;
-  background: rgba(42, 42, 42, 0.8);
-  border-radius: 10px;
-  overflow: hidden;
-  border-collapse: collapse;
+    width: 100%;
+    background: rgba(42, 42, 42, 0.8);
+    border-radius: 10px;
+    overflow: hidden;
+    border-collapse: collapse;
 }
 
 .history-table th,
 .history-table td {
-  padding: 1rem;
-  text-align: left;
-  border-bottom: 1px solid #444;
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #444;
 }
 
 .history-table th {
-  background: rgba(255, 107, 107, 0.2);
-  color: #ff6b6b;
-  font-weight: bold;
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+    font-weight: bold;
 }
 
 .history-table tr:hover {
-  background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.05);
 }
 
-.log-section {
-  margin-top: 3rem;
-  display: none;
+.table-empty {
+    text-align: center;
+    color: #666;
 }
 
-.log-section.show {
-  display: block;
+/* Custom scrollbar for log container */
+.log-container::-webkit-scrollbar {
+    width: 8px;
 }
 
-.log-section h2 {
-  color: #4834d4;
-  margin-bottom: 1rem;
+.log-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
 }
 
-.log-container {
-  background: #000;
-  border: 1px solid #333;
-  border-radius: 10px;
-  padding: 1rem;
-  max-height: 400px;
-  overflow-y: auto;
-  font-family: monospace;
-  font-size: 0.9rem;
+.log-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
 }
 
-.log-entry {
-  margin-bottom: 0.5rem;
-  padding: 0.25rem;
-  border-radius: 3px;
+.log-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
-.log-entry.output {
-  color: #00ff00;
-}
-
-.log-entry.error {
-  color: #ff6b6b;
-  background: rgba(255, 107, 107, 0.1);
-}
-
-.log-entry.info {
-  color: #4834d4;
-}
-
-.controls {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-}
-
-.control-button {
-  background: linear-gradient(135deg, #4834d4 0%, #686de0 100%);
-  border: none;
-  border-radius: 25px;
-  padding: 0.7rem 1.5rem;
-  color: white;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-}
-
-.control-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(72, 52, 212, 0.4);
-}
-
-.control-button:disabled {
-  background: rgba(100, 100, 100, 0.5);
-  cursor: not-allowed;
-  transform: none;
-}
-
-.credentials-form {
-  background: rgba(42, 42, 42, 0.8);
-  padding: 1.5rem;
-  border-radius: 10px;
-  margin-bottom: 2rem;
-  border: 1px solid #444;
-}
-
-.credentials-form h3 {
-  color: #ff6b6b;
-  margin-bottom: 1rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  color: #ccc;
-}
-
-.form-group input {
-  width: 100%;
-  max-width: 320px;
-  padding: 0.7rem;
-  border: 1px solid #666;
-  border-radius: 5px;
-  background: rgba(0, 0, 0, 0.3);
-  color: white;
-  font-size: 0.9rem;
-}
-
-.form-group input:focus {
-  border-color: #ff6b6b;
-  outline: none;
-}
-
-.save-button {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-  border: none;
-  border-radius: 20px;
-  padding: 0.7rem 1.5rem;
-  color: white;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-}
-
-.save-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
-}
-
+/* Responsive Design */
 @media (max-width: 768px) {
-  body {
-    padding: 1rem;
-  }
-
-  .header h1 {
-    font-size: 2rem;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .history-table {
-    font-size: 0.8rem;
-  }
-
-  .history-table th,
-  .history-table td {
-    padding: 0.5rem;
-  }
+    .status-container {
+        padding: 1rem;
+    }
+    
+    .page-title h2 {
+        font-size: 1.5rem;
+    }
+    
+    .credentials-status-card {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+    
+    .credentials-status-info {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .control-button {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .history-table {
+        font-size: 0.8rem;
+    }
+    
+    .history-table th,
+    .history-table td {
+        padding: 0.5rem;
+    }
 }

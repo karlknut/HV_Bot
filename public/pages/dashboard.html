@@ -1,210 +1,167 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HV Forum Bot - Dashboard</title>
-    <link rel="stylesheet" href="/css/common.css" />
-    <link rel="stylesheet" href="/css/modal.css" />
-    <link rel="stylesheet" href="/css/dashboard.css" />
-    <style>
-    </style>
-  </head>
-  <body>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
     <canvas id="starfield"></canvas>
 
     <!-- Professional Header -->
     <div class="header">
-      <div class="header-left">
-        <div class="header-logo">
-          <div href="/dashboard" class="header-logo-icon">HV</div>
-          <h1 href="/dashboard">Forum Bot</h1>
+        <div class="header-left">
+            <div class="header-logo">
+                <div class="header-logo-icon">HV</div>
+                <h1>Forum Bot</h1>
+            </div>
+            <nav class="header-nav">
+                <a href="/dashboard" class="nav-link active">Dashboard</a>
+                <a href="/status" class="nav-link">Status</a>
+            </nav>
         </div>
-        <nav class="header-nav">
-          <a href="/dashboard" class="nav-link active">Dashboard</a>
-          <a href="/status" class="nav-link">Status</a>
-        </nav>
-      </div>
-      <div class="header-right">
-        <div class="user-badge">
-          <div class="user-avatar" id="userAvatar">--</div>
-          <div class="user-info-text">
-            <span class="user-label">Logged in as</span>
-            <span class="user-name" id="userName">Loading...</span>
-          </div>
+        <div class="header-right">
+            <div class="user-badge">
+                <div class="user-avatar" id="userAvatar">--</div>
+                <div class="user-info-text">
+                    <span class="user-label">Logged in as</span>
+                    <span class="user-name" id="userName">Loading...</span>
+                </div>
+            </div>
+            <button class="logout-btn" id="logoutBtn">Logout</button>
         </div>
-        <button class="logout-btn" id="logoutBtn">Logout</button>
-      </div>
     </div>
 
     <!-- Bot Running Indicator -->
     <div class="bot-running-indicator" id="botRunningIndicator">
-      <div class="spinner"></div>
-      <span style="color: #10b981; font-weight: 600">Bot is running</span>
+        <div class="spinner"></div>
+        <span class="bot-status-text">Bot is running</span>
     </div>
 
     <!-- Dashboard Container -->
     <div class="dashboard-container">
-      <!-- Welcome Section -->
-      <div class="welcome-section">
-        <h2 class="welcome-title">Welcome to Your Bot Dashboard</h2>
-        <p class="welcome-subtitle">Manage your forum automation with ease</p>
-      </div>
+        <!-- Welcome Section -->
+        <div class="welcome-section">
+            <h2 class="welcome-title">Welcome to Your Bot Dashboard</h2>
+            <p class="welcome-subtitle">Manage your forum automation with ease</p>
+        </div>
 
-      <!-- Messages -->
-      <div class="message" id="message"></div>
+        <!-- Messages -->
+        <div class="message" id="message"></div>
 
-      <!-- Credentials Card (Logged In State) -->
-      <div class="credentials-card" id="credentialsCard">
-        <div class="credentials-header">
-          <div class="credentials-status">
-            <span class="status-dot"></span>
-            <span style="color: #10b981; font-weight: 600"
-              >Connected to Forum</span
-            >
-          </div>
-          <button class="edit-credentials-btn" id="editCredentialsBtn">
-            Edit Credentials
-          </button>
+        <!-- Credentials Card (Logged In State) -->
+        <div class="credentials-card" id="credentialsCard">
+            <div class="credentials-header">
+                <div class="credentials-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connected to Forum</span>
+                </div>
+                <button class="edit-credentials-btn" id="editCredentialsBtn">Edit Credentials</button>
+            </div>
+            <div class="credentials-info">
+                <div class="credential-item">
+                    <span class="credential-label">Forum Username</span>
+                    <span class="credential-value" id="forumUsernameDisplay">---</span>
+                </div>
+                <div class="credential-item">
+                    <span class="credential-label">Last Updated</span>
+                    <span class="credential-value" id="credentialsLastUpdated">---</span>
+                </div>
+            </div>
         </div>
-        <div class="credentials-info">
-          <div class="credential-item">
-            <span class="credential-label">Forum Username</span>
-            <span class="credential-value" id="forumUsernameDisplay">---</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">Last Updated</span>
-            <span class="credential-value" id="credentialsLastUpdated"
-              >---</span
-            >
-          </div>
-        </div>
-      </div>
 
-      <!-- Credentials Form -->
-      <div
-        class="credentials-form-section"
-        id="credentialsForm"
-        style="display: none"
-      >
-        <h3 style="color: #3b82f6; margin-bottom: 1rem">Forum Credentials</h3>
-        <p style="color: rgba(255, 255, 255, 0.6); margin-bottom: 1.5rem">
-          Enter your forum login details. They will be encrypted and stored
-          securely.
-        </p>
-        <div
-          style="
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            align-items: flex-end;
-          "
-        >
-          <div class="form-group" style="flex: 1; min-width: 200px">
-            <label for="forumUsername">Forum Username</label>
-            <input
-              type="text"
-              id="forumUsername"
-              placeholder="Your forum username"
-            />
-          </div>
-          <div class="form-group" style="flex: 1; min-width: 200px">
-            <label for="forumPassword">Forum Password</label>
-            <input
-              type="password"
-              id="forumPassword"
-              placeholder="Your forum password"
-            />
-          </div>
-          <button
-            class="btn btn-success"
-            id="saveCredentialsBtn"
-            style="height: fit-content"
-          >
-            Save Credentials
-          </button>
+        <!-- Credentials Form -->
+        <div class="credentials-form-section" id="credentialsForm">
+            <h3>Forum Credentials</h3>
+            <p class="form-description">
+                Enter your forum login details. They will be encrypted and stored securely.
+            </p>
+            <div class="credentials-form-inputs">
+                <div class="form-group">
+                    <label for="forumUsername">Forum Username</label>
+                    <input type="text" id="forumUsername" placeholder="Your forum username">
+                </div>
+                <div class="form-group">
+                    <label for="forumPassword">Forum Password</label>
+                    <input type="password" id="forumPassword" placeholder="Your forum password">
+                </div>
+                <button class="btn btn-success" id="saveCredentialsBtn">
+                    Save Credentials
+                </button>
+            </div>
         </div>
-      </div>
 
-      <!-- Action Buttons -->
-      <div class="action-buttons">
-        <button class="action-btn primary" id="startButton" disabled>
-          <span>🚀 Start Bot</span>
-        </button>
-        <button class="action-btn danger" id="stopButton" disabled>
-          <span>⏹️ Stop Bot</span>
-        </button>
-        <a
-          href="/status"
-          class="action-btn secondary"
-          style="text-decoration: none"
-        >
-          <span>📊 View Detailed Status</span>
-        </a>
-      </div>
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button class="action-btn primary" id="startButton" disabled>
+                <span class="btn-icon">🚀</span>
+                <span class="btn-text">Start Bot</span>
+            </button>
+            <button class="action-btn danger" id="stopButton" disabled>
+                <span class="btn-icon">⏹️</span>
+                <span class="btn-text">Stop Bot</span>
+            </button>
+            <a href="/status" class="action-btn secondary">
+                <span class="btn-icon">📊</span>
+                <span class="btn-text">View Detailed Status</span>
+            </a>
+        </div>
 
-      <!-- Quick Stats -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">Total Runs</div>
-          <div class="stat-value" id="totalRuns">0</div>
+        <!-- Quick Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Runs</div>
+                <div class="stat-value" id="totalRuns">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Posts Updated</div>
+                <div class="stat-value" id="totalPosts">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Comments Added</div>
+                <div class="stat-value" id="totalComments">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Last Run</div>
+                <div class="stat-value stat-value-small" id="lastRun">Never</div>
+            </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Posts Updated</div>
-          <div class="stat-value" id="totalPosts">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Comments Added</div>
-          <div class="stat-value" id="totalComments">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Last Run</div>
-          <div class="stat-value" id="lastRun" style="font-size: 1.2rem">
-            Never
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Modal Overlay -->
     <div id="modalOverlay" class="modal-overlay">
-      <div class="modal-container">
-        <div class="modal-header">
-          <div id="modalIcon" class="modal-icon">
-            <span id="modalIconSymbol">?</span>
-          </div>
-          <h2 id="modalTitle" class="modal-title">Confirmation</h2>
+        <div class="modal-container">
+            <div class="modal-header">
+                <div id="modalIcon" class="modal-icon">
+                    <span id="modalIconSymbol">?</span>
+                </div>
+                <h2 id="modalTitle" class="modal-title">Confirmation</h2>
+            </div>
+            <div id="modalBody" class="modal-body">
+                Are you sure you want to proceed?
+            </div>
+            <div id="modalActions" class="modal-actions">
+                <button id="modalCancel" class="modal-btn modal-btn-secondary">Cancel</button>
+                <button id="modalConfirm" class="modal-btn modal-btn-primary">Confirm</button>
+            </div>
         </div>
-        <div id="modalBody" class="modal-body">
-          Are you sure you want to proceed?
-        </div>
-        <div id="modalActions" class="modal-actions">
-          <button id="modalCancel" class="modal-btn modal-btn-secondary">
-            Cancel
-          </button>
-          <button id="modalConfirm" class="modal-btn modal-btn-primary">
-            Confirm
-          </button>
-        </div>
-      </div>
     </div>
 
     <!-- Toast Notification -->
     <div id="notificationToast" class="notification-toast">
-      <div id="toastIcon" class="notification-icon">
-        <span id="toastIconSymbol">✓</span>
-      </div>
-      <div class="notification-content">
-        <div id="toastTitle" class="notification-title">Success</div>
-        <div id="toastMessage" class="notification-message">
-          Operation completed
+        <div id="toastIcon" class="notification-icon">
+            <span id="toastIconSymbol">✓</span>
         </div>
-      </div>
-      <button id="toastClose" class="notification-close">×</button>
+        <div class="notification-content">
+            <div id="toastTitle" class="notification-title">Success</div>
+            <div id="toastMessage" class="notification-message">Operation completed</div>
+        </div>
+        <button id="toastClose" class="notification-close">×</button>
     </div>
 
     <script src="/js/common.js"></script>
-    <script src="/js/modal.js"></script>
     <script src="/js/dashboard.js"></script>
-  </body>
+</body>
 </html>
