@@ -9,7 +9,7 @@ class StarfieldAnimation {
         this.ctx = this.canvas.getContext('2d');
         this.stars = [];
         this.numStars = window.innerWidth < 768 ? 1000 : 2500;
-        this.speed = 0.4;
+        this.speed = 0.05;
         
         this.init();
         this.animate();

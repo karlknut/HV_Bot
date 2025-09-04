@@ -1,10 +1,11 @@
-// Enhanced Dashboard with Modal System and Better State Management
+// Dashboard with enhanced debugging for credentials issue
 (function () {
   "use strict";
 
   let wsConnected = false;
   let hasForumCredentials = false;
   let forumUsername = null;
+  let isBotRunning = false;
 
   function init() {
     console.log("Dashboard initializing...");
@@ -73,13 +74,13 @@
       logoutBtn.addEventListener("click", handleLogout);
     }
 
-    // Edit credentials button
+    // Edit credentials button - now shows modal
     const editCredsBtn = document.getElementById("editCredentialsBtn");
     if (editCredsBtn) {
       editCredsBtn.addEventListener("click", showCredentialsForm);
     }
 
-    // Save credentials button
+    // Save credentials button (if inline form is still visible)
     const saveCredsBtn = document.getElementById("saveCredentialsBtn");
     if (saveCredsBtn) {
       saveCredsBtn.addEventListener("click", handleSaveCredentials);
@@ -123,15 +124,16 @@
   }
 
   function updateBotStatus(running) {
+    console.log("Updating bot status to:", running);
+    isBotRunning = running;
     const startButton = document.getElementById("startButton");
     const stopButton = document.getElementById("stopButton");
     const runningIndicator = document.getElementById("botRunningIndicator");
-    const statusBadge = document.getElementById("statusBadge");
 
     if (running) {
       if (startButton) {
         startButton.disabled = true;
-        startButton.innerHTML = "<span>⏸️ Bot Running...</span>";
+        startButton.innerHTML = '<span class="btn-icon">⏸️</span><span class="btn-text">Bot Running...</span>';
       }
       if (stopButton) {
         stopButton.disabled = false;
@@ -139,14 +141,12 @@
       if (runningIndicator) {
         runningIndicator.style.display = "flex";
       }
-      if (statusBadge) {
-        statusBadge.className = "status-badge running";
-        statusBadge.textContent = "Running";
-      }
     } else {
       if (startButton) {
+        // Only enable if we have credentials
+        console.log("Setting start button disabled state to:", !hasForumCredentials);
         startButton.disabled = !hasForumCredentials;
-        startButton.innerHTML = "<span>🚀 Start Bot</span>";
+        startButton.innerHTML = '<span class="btn-icon">🚀</span><span class="btn-text">Start Bot</span>';
       }
       if (stopButton) {
         stopButton.disabled = true;
@@ -154,16 +154,13 @@
       if (runningIndicator) {
         runningIndicator.style.display = "none";
       }
-      if (statusBadge) {
-        statusBadge.className = "status-badge idle";
-        statusBadge.textContent = "Idle";
-      }
     }
   }
 
   async function loadStats() {
     try {
       const result = await API.get("/api/stats");
+      console.log("Stats API response:", result);
       if (result && result.success && result.data) {
         updateStatsDisplay(result.data);
       }
@@ -174,29 +171,69 @@
 
   async function loadCredentialsStatus() {
     try {
+      console.log("Loading credentials status...");
       const result = await API.get("/api/forum-credentials");
-      if (result && result.success && result.data) {
-        updateCredentialsDisplay(result.data);
+      console.log("Raw credentials API response:", result);
+      
+      // Check different possible response structures
+      let credentialsData = null;
+      
+      if (result) {
+        // Handle the nested data.data structure
+        if (result.success && result.data && result.data.data) {
+          console.log("Found nested credentials in result.data.data:", result.data.data);
+          credentialsData = result.data.data;
+        } else if (result.success && result.data) {
+          console.log("Found credentials in result.data:", result.data);
+          credentialsData = result.data;
+        } else if (result.data) {
+          console.log("Found credentials in result.data (no success flag):", result.data);
+          credentialsData = result.data;
+        } else if (result.hasCredentials !== undefined) {
+          console.log("Found credentials directly in result:", result);
+          credentialsData = result;
+        } else {
+          console.log("Unexpected response structure, treating as no credentials");
+          credentialsData = { hasCredentials: false };
+        }
+      } else {
+        console.log("No result from API, treating as no credentials");
+        credentialsData = { hasCredentials: false };
       }
+      
+      updateCredentialsDisplay(credentialsData);
     } catch (error) {
       console.error("Error loading credentials status:", error);
+      // On error, show form
+      updateCredentialsDisplay({ hasCredentials: false });
     }
   }
 
   function updateCredentialsDisplay(data) {
-    hasForumCredentials = data.hasCredentials;
+    console.log("updateCredentialsDisplay called with:", data);
+    console.log("Type of data:", typeof data);
+    console.log("data.hasCredentials:", data.hasCredentials);
+    console.log("Type of data.hasCredentials:", typeof data.hasCredentials);
+    
+    // Be very explicit about the check
+    hasForumCredentials = (data.hasCredentials === true) || (data.hasCredentials === "true");
+    console.log("hasForumCredentials set to:", hasForumCredentials);
 
     const credentialsCard = document.getElementById("credentialsCard");
     const credentialsForm = document.getElementById("credentialsForm");
     const startButton = document.getElementById("startButton");
 
     if (hasForumCredentials) {
+      console.log("User HAS forum credentials - showing card");
+      
       // Show logged in state
       if (credentialsCard) {
         credentialsCard.style.display = "block";
+        console.log("Credentials card shown");
       }
       if (credentialsForm) {
         credentialsForm.style.display = "none";
+        console.log("Credentials form hidden");
       }
 
       // Update credentials info
@@ -205,34 +242,59 @@
         const usernameElement = document.getElementById("forumUsernameDisplay");
         if (usernameElement) {
           usernameElement.textContent = forumUsername;
+          console.log("Username displayed:", forumUsername);
+        }
+      } else {
+        // If no username provided, show "Set"
+        const usernameElement = document.getElementById("forumUsernameDisplay");
+        if (usernameElement) {
+          usernameElement.textContent = "Credentials Set";
+          console.log("Username displayed as 'Credentials Set'");
         }
       }
 
       if (data.lastUpdated) {
-        const lastUpdatedElement = document.getElementById(
-          "credentialsLastUpdated",
-        );
+        const lastUpdatedElement = document.getElementById("credentialsLastUpdated");
         if (lastUpdatedElement) {
           lastUpdatedElement.textContent = formatTimeAgo(data.lastUpdated);
+          console.log("Last updated displayed");
         }
       }
 
-      // Enable start button
-      if (startButton && !startButton.disabled) {
-        startButton.disabled = false;
+      // Enable start button only if bot is not running
+      if (startButton) {
+        const shouldDisable = isBotRunning;
+        startButton.disabled = shouldDisable;
+        console.log("Start button disabled:", shouldDisable, "(bot running:", isBotRunning, ")");
       }
     } else {
-      // Show credentials form
+      console.log("User DOES NOT have forum credentials - showing form");
+      
+      // Show credentials form with a button instead of inline form
       if (credentialsCard) {
         credentialsCard.style.display = "none";
+        console.log("Credentials card hidden");
       }
+      
+      // Create a better first-time setup experience
       if (credentialsForm) {
+        credentialsForm.innerHTML = `
+          <h3>Forum Credentials Required</h3>
+          <p class="form-description">
+            You need to set your forum credentials before you can start the bot.
+          </p>
+          <button class="btn btn-primary" onclick="document.getElementById('editCredentialsBtn').click()">
+            Set Forum Credentials
+          </button>
+        `;
         credentialsForm.style.display = "block";
+        console.log("Credentials setup prompt shown");
       }
 
       // Disable start button
       if (startButton) {
         startButton.disabled = true;
+        console.log("Start button disabled (no credentials)");
       }
     }
   }
@@ -241,12 +303,15 @@
     const formattedStats = Stats.formatStatsDisplay(stats);
 
     // Update stat cards
-    document.getElementById("totalRuns").textContent = formattedStats.totalRuns;
-    document.getElementById("totalPosts").textContent =
-      formattedStats.totalPostsUpdated;
-    document.getElementById("totalComments").textContent =
-      formattedStats.totalCommentsAdded;
-    document.getElementById("lastRun").textContent = formattedStats.lastRun;
+    const totalRunsEl = document.getElementById("totalRuns");
+    const totalPostsEl = document.getElementById("totalPosts");
+    const totalCommentsEl = document.getElementById("totalComments");
+    const lastRunEl = document.getElementById("lastRun");
+
+    if (totalRunsEl) totalRunsEl.textContent = formattedStats.totalRuns;
+    if (totalPostsEl) totalPostsEl.textContent = formattedStats.totalPostsUpdated;
+    if (totalCommentsEl) totalCommentsEl.textContent = formattedStats.totalCommentsAdded;
+    if (lastRunEl) lastRunEl.textContent = formattedStats.lastRun;
 
     // Update bot status
     updateBotStatus(formattedStats.isRunning);
@@ -287,25 +352,38 @@
     UI.showLoading(true);
 
     try {
+      console.log("Saving credentials for:", username);
       const result = await API.post("/api/forum-credentials", {
         forumUsername: username,
         forumPassword: password,
       });
+
+      console.log("Save credentials API response:", result);
 
       if (result && result.success) {
         Toast.success(
           "Credentials Saved",
           "Your forum credentials have been updated",
         );
+        
+        // Clear password field
         document.getElementById("forumPassword").value = "";
-        loadCredentialsStatus();
+        
+        // Wait a moment for the server to save
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Reload credentials status
+        console.log("Reloading credentials after save...");
+        await loadCredentialsStatus();
       } else {
+        console.error("Save failed:", result);
         Toast.error(
           "Save Failed",
-          result.error || "Failed to save credentials",
+          result.error || result.data?.error || "Failed to save credentials",
         );
       }
     } catch (error) {
+      console.error("Save credentials error:", error);
       Toast.error("Error", "Failed to save credentials");
     } finally {
       UI.showLoading(false);
@@ -313,6 +391,13 @@
   }
 
   async function handleStartBot() {
+    console.log("Start bot clicked. hasForumCredentials:", hasForumCredentials);
+    
+    if (!hasForumCredentials) {
+      Toast.warning("Credentials Required", "Please set your forum credentials first");
+      return;
+    }
+    
     Modal.confirm(
       "Start Bot?",
       "The bot will begin updating your forum posts and adding comments. This may take a few minutes.",
@@ -321,14 +406,28 @@
 
         try {
           const result = await API.post("/api/start-bot", {});
+          console.log("Start bot API response:", result);
 
           if (!result.success) {
-            Toast.error(
-              "Start Failed",
-              result.data?.message || result.error || "Failed to start bot",
-            );
+            // Check if it's a credentials issue
+            if (result.message && result.message.includes("credentials")) {
+              Toast.error(
+                "Credentials Required",
+                "Please set your forum credentials first",
+              );
+              // Reload credentials status to update UI
+              loadCredentialsStatus();
+            } else {
+              Toast.error(
+                "Start Failed",
+                result.message || result.error || "Failed to start bot",
+              );
+            }
+          } else {
+            Toast.success("Bot Starting", "Your bot is starting up...");
           }
         } catch (error) {
+          console.error("Start bot error:", error);
           Toast.error("Error", "Failed to start bot");
         } finally {
           UI.showLoading(false);
@@ -350,7 +449,7 @@
           if (!result.success) {
             Toast.error(
               "Stop Failed",
-              result.data?.message || result.error || "Failed to stop bot",
+              result.message || result.error || "Failed to stop bot",
             );
           }
         } catch (error) {
@@ -401,4 +500,20 @@
   } else {
     init();
   }
+  
+  // Add to global scope for debugging
+  window.debugCredentials = {
+    hasForumCredentials: () => hasForumCredentials,
+    forumUsername: () => forumUsername,
+    isBotRunning: () => isBotRunning,
+    reloadCredentials: loadCredentialsStatus,
+    checkStartButton: () => {
+      const btn = document.getElementById("startButton");
+      console.log("Start button state:", {
+        disabled: btn.disabled,
+        hasCredentials: hasForumCredentials,
+        isBotRunning: isBotRunning
+      });
+    }
+  };
 })();

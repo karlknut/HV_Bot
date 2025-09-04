@@ -10,13 +10,15 @@
 <body>
     <canvas id="starfield"></canvas>
 
-    <!-- Professional Header -->
+    <!-- Header -->
     <div class="header">
         <div class="header-left">
-            <div class="header-logo">
-                <div class="header-logo-icon">HV</div>
-                <h1>Forum Bot</h1>
-            </div>
+            <a href="/dashboard" style="text-decoration: none; display: flex; align-items: center;">
+                <div class="header-logo">
+                    <div class="header-logo-icon">HV</div>
+                    <h1>Forum Bot</h1>
+                </div>
+            </a>
             <nav class="header-nav">
                 <a href="/dashboard" class="nav-link active">Dashboard</a>
                 <a href="/status" class="nav-link">Status</a>
@@ -95,7 +97,7 @@
 
         <!-- Action Buttons -->
         <div class="action-buttons">
-            <button class="action-btn primary" id="startButton" disabled>
+            <button class="action-btn primary" id="startButton">
                 <span class="btn-icon">🚀</span>
                 <span class="btn-text">Start Bot</span>
             </button>

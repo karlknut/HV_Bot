@@ -1,4 +1,4 @@
-// Enhanced Status Page with Modal System and Better State Management
+// Fixed Status Page with all issues resolved
 (function () {
   "use strict";
 
@@ -161,8 +161,14 @@
   async function refreshStats() {
     try {
       const response = await API.get("/api/stats");
-      if (response && response.success && response.data) {
-        updateStatsDisplay(response.data);
+      console.log("Stats API response:", response);
+      
+      if (response && response.success) {
+        // Handle nested data structure
+        let statsData = response.data?.data || response.data;
+        if (statsData) {
+          updateStatsDisplay(statsData);
+        }
       }
     } catch (error) {
       console.error("Error loading stats:", error);
@@ -172,16 +178,25 @@
   async function loadCredentialsStatus() {
     try {
       const result = await API.get("/api/forum-credentials");
-      if (result && result.success && result.data) {
-        updateCredentialsDisplay(result.data);
+      console.log("Credentials API response:", result);
+      
+      if (result && result.success) {
+        // Handle nested data structure (result.data.data)
+        let credentialsData = result.data?.data || result.data;
+        if (credentialsData) {
+          updateCredentialsDisplay(credentialsData);
+        }
+      } else {
+        updateCredentialsDisplay({ hasCredentials: false });
       }
     } catch (error) {
       console.error("Error loading credentials status:", error);
+      updateCredentialsDisplay({ hasCredentials: false });
     }
   }
 
   function updateCredentialsDisplay(data) {
-    hasForumCredentials = data.hasCredentials;
+    hasForumCredentials = data.hasCredentials === true;
 
     const connectionStatus = document.getElementById("connectionStatus");
     const forumUserDisplay = document.getElementById("forumUserDisplay");
@@ -198,6 +213,11 @@
         if (forumUserDisplay) {
           forumUserDisplay.textContent = forumUsername;
         }
+      } else {
+        // If no username but has credentials, show "Set"
+        if (forumUserDisplay) {
+          forumUserDisplay.textContent = "Credentials Set";
+        }
       }
     } else {
       if (connectionStatus) {
@@ -213,11 +233,12 @@
   }
 
   function updateStatsDisplay(stats) {
+    console.log("Updating stats display with:", stats);
+    
+    // Update individual stat values
     document.getElementById("totalRuns").textContent = stats.totalRuns || 0;
-    document.getElementById("postsUpdated").textContent =
-      stats.totalPostsUpdated || 0;
-    document.getElementById("commentsAdded").textContent =
-      stats.totalCommentsAdded || 0;
+    document.getElementById("postsUpdated").textContent = stats.totalPostsUpdated || 0;
+    document.getElementById("commentsAdded").textContent = stats.totalCommentsAdded || 0;
 
     const lastRun = stats.lastRunDate
       ? formatTimeAgo(stats.lastRunDate)
@@ -237,7 +258,7 @@
     document.getElementById("successRate").textContent = `${successRate}%`;
 
     // Update bot status
-    updateBotStatus(stats.isRunning);
+    updateBotStatus(stats.isRunning || false);
 
     // Update run history
     updateRunHistory(stats.runHistory || []);
@@ -428,9 +449,23 @@
   };
 
   window.refreshStats = async function () {
-    Toast.info("Refreshing", "Updating statistics...");
+    Toast.info("Refreshing", "Updating statistics...", 2000); // Short duration
     await refreshStats();
-    UI.showRefreshIndicator();
+    // Use the fixed showRefreshIndicator
+    const indicator = document.createElement('div');
+    indicator.className = 'refresh-indicator show';
+    indicator.textContent = '✓ Updated';
+    indicator.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); z-index: 1000; transition: opacity 0.3s ease;';
+    document.body.appendChild(indicator);
+    
+    setTimeout(() => {
+      indicator.style.opacity = '0';
+      setTimeout(() => {
+        if (indicator.parentNode) {
+          indicator.parentNode.removeChild(indicator);
+        }
+      }, 300);
+    }, 2000);
   };
 
   window.emergencyStop = async function () {

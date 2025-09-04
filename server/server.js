@@ -340,6 +340,13 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
     const forumUsername = encryption.decrypt(user.forumCredentials.username);
     const forumPassword = encryption.decrypt(user.forumCredentials.password);
 
+    // IMPORTANT: Update stats BEFORE starting the bot
+    const stats = await loadUserStats(userId);
+    stats.totalRuns = (stats.totalRuns || 0) + 1;  // Increment total runs
+    stats.lastRunDate = new Date().toISOString();
+    stats.lastRunStatus = "running";
+    await saveUserStats(userId, stats);  // Save immediately
+
     // Use bot manager to start bot
     botManager.once("botStarted", (data) => {
       if (data.userId === userId) {
@@ -352,22 +359,24 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
 
     botManager.once("botCompleted", async (data) => {
       if (data.userId === userId) {
-        // Update stats
-        const stats = await loadUserStats(userId);
-        stats.totalPostsUpdated += data.stats.postsUpdated;
-        stats.totalCommentsAdded += data.stats.commentsAdded;
-        stats.lastRunStatus = "completed";
+        // Load current stats to ensure we have the updated totalRuns
+        const currentStats = await loadUserStats(userId);
+        
+        // Update only the completion-related fields
+        currentStats.totalPostsUpdated = (currentStats.totalPostsUpdated || 0) + data.stats.postsUpdated;
+        currentStats.totalCommentsAdded = (currentStats.totalCommentsAdded || 0) + data.stats.commentsAdded;
+        currentStats.lastRunStatus = "completed";
 
-        if (!stats.runHistory) stats.runHistory = [];
-        stats.runHistory.unshift({
+        if (!currentStats.runHistory) currentStats.runHistory = [];
+        currentStats.runHistory.unshift({
           date: new Date().toISOString(),
           postsUpdated: data.stats.postsUpdated,
           commentsAdded: data.stats.commentsAdded,
           status: "completed",
         });
-        stats.runHistory = stats.runHistory.slice(0, 50);
+        currentStats.runHistory = currentStats.runHistory.slice(0, 50);
 
-        await saveUserStats(userId, stats);
+        await saveUserStats(userId, currentStats);
 
         broadcastToUser(userId, {
           type: "botCompleted",
@@ -382,21 +391,21 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
 
     botManager.once("botError", async (data) => {
       if (data.userId === userId) {
-        // Update stats with error
-        const stats = await loadUserStats(userId);
-        stats.lastRunStatus = "error";
+        // Load current stats to ensure we have the updated totalRuns
+        const currentStats = await loadUserStats(userId);
+        currentStats.lastRunStatus = "error";
 
-        if (!stats.runHistory) stats.runHistory = [];
-        stats.runHistory.unshift({
+        if (!currentStats.runHistory) currentStats.runHistory = [];
+        currentStats.runHistory.unshift({
           date: new Date().toISOString(),
           postsUpdated: 0,
           commentsAdded: 0,
           status: "error",
           error: data.error,
         });
-        stats.runHistory = stats.runHistory.slice(0, 50);
+        currentStats.runHistory = currentStats.runHistory.slice(0, 50);
 
-        await saveUserStats(userId, stats);
+        await saveUserStats(userId, currentStats);
 
         broadcastToUser(userId, {
           type: "botError",
@@ -425,25 +434,31 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
     );
 
     if (success) {
-      // Update stats
-      const stats = await loadUserStats(userId);
-      stats.totalRuns += 1;
-      stats.lastRunDate = new Date().toISOString();
-      stats.lastRunStatus = "running";
-      await saveUserStats(userId, stats);
-
       res.json({ success: true, message: "Bot started successfully" });
     } else {
+      // If bot failed to start, update the stats
+      const currentStats = await loadUserStats(userId);
+      currentStats.lastRunStatus = "error";
+      await saveUserStats(userId, currentStats);
+      
       res.json({ success: false, message: "Failed to start bot" });
     }
   } catch (error) {
     console.error("Bot start error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to start bot: " + error.message,
-      });
+    
+    // On error, update stats
+    try {
+      const currentStats = await loadUserStats(userId);
+      currentStats.lastRunStatus = "error";
+      await saveUserStats(userId, currentStats);
+    } catch (statsError) {
+      console.error("Failed to update stats after error:", statsError);
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: "Failed to start bot: " + error.message,
+    });
   }
 });
 
@@ -613,7 +628,10 @@ async function runBotForUser(userId, forumUsername, forumPassword) {
 
     // Update stats with error
     const stats = await loadUserStats(userId);
-    stats.lastRunStatus = "error";
+    stats.totalRuns = (stats.totalRuns || 0) + 1;  // Properly increment
+    stats.lastRunDate = new Date().toISOString();
+    stats.lastRunStatus = "running";
+    await saveUserStats(userId, stats);  // Save immediately
 
     if (!stats.runHistory) stats.runHistory = [];
     stats.runHistory.unshift({
