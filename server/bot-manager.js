@@ -52,10 +52,11 @@ class BotManager extends EventEmitter {
       });
 
       // Update stats
-      this.stats.set(userId, {
-        postsUpdated: result.postsUpdated || 0,
-        commentsAdded: result.commentsAdded || 0,
-      });
+    this.stats.set(userId, {
+      postsUpdated: result.postsUpdated || 0,
+      commentsAdded: result.commentsAdded || 0,
+      threadTitles: result.threadTitles || [] // Include thread titles
+    });
 
       // Update bot state
       const bot = this.bots.get(userId);

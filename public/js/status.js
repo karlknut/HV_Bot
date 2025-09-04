@@ -1,10 +1,11 @@
-// Fixed Status Page with all issues resolved
+// Enhanced Status Page with Run History Details
 (function () {
   "use strict";
 
   let logsVisible = false;
   let hasForumCredentials = false;
   let forumUsername = null;
+  let runHistoryData = [];
 
   function init() {
     console.log("Status page initializing...");
@@ -49,7 +50,6 @@
     }
 
     if (userAvatar) {
-      // Set avatar initials
       userAvatar.textContent = user.username.substring(0, 2).toUpperCase();
     }
   }
@@ -181,7 +181,7 @@
       console.log("Credentials API response:", result);
       
       if (result && result.success) {
-        // Handle nested data structure (result.data.data)
+        // Handle nested data structure
         let credentialsData = result.data?.data || result.data;
         if (credentialsData) {
           updateCredentialsDisplay(credentialsData);
@@ -208,13 +208,13 @@
           '<span class="status-dot"></span><span>Connected to Forum</span>';
       }
 
-      if (data.username) {
+      // Display actual username if available
+      if (data.username && data.username !== "") {
         forumUsername = data.username;
         if (forumUserDisplay) {
           forumUserDisplay.textContent = forumUsername;
         }
       } else {
-        // If no username but has credentials, show "Set"
         if (forumUserDisplay) {
           forumUserDisplay.textContent = "Credentials Set";
         }
@@ -260,6 +260,9 @@
     // Update bot status
     updateBotStatus(stats.isRunning || false);
 
+    // Store run history data
+    runHistoryData = stats.runHistory || [];
+
     // Update run history
     updateRunHistory(stats.runHistory || []);
   }
@@ -274,18 +277,108 @@
       return;
     }
 
-    history.slice(0, 20).forEach((run) => {
+    history.slice(0, 20).forEach((run, index) => {
       const row = tbody.insertRow();
       const date = new Date(run.date).toLocaleString();
 
+      // Make the row clickable
+      row.style.cursor = "pointer";
+      row.style.transition = "background 0.3s";
+      
       row.innerHTML = `
-                <td>${date}</td>
-                <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span></td>
-                <td>${run.postsUpdated || 0}</td>
-                <td>${run.commentsAdded || 0}</td>
-                <td>-</td>
-            `;
+        <td>${date}</td>
+        <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span></td>
+        <td>${run.postsUpdated || 0}</td>
+        <td>${run.commentsAdded || 0}</td>
+        <td>${run.duration || '-'}</td>
+      `;
+
+      // Add click handler to show run details
+      row.addEventListener("click", () => showRunDetails(run));
+      
+      // Add hover effect
+      row.addEventListener("mouseenter", () => {
+        row.style.background = "rgba(255, 255, 255, 0.05)";
+      });
+      
+      row.addEventListener("mouseleave", () => {
+        row.style.background = "";
+      });
     });
+  }
+
+  function showRunDetails(run) {
+    // Use actual thread titles from the run data
+    const threadTitles = run.threadTitles || [];
+    
+    const modalContent = `
+      <div style="text-align: left;">
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #3b82f6;">Date:</strong> 
+          <span style="color: #ccc;">${new Date(run.date).toLocaleString()}</span>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #3b82f6;">Status:</strong> 
+          <span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #3b82f6;">Posts Updated:</strong> 
+          <span style="color: #ccc;">${run.postsUpdated || 0}</span>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #3b82f6;">Comments Added:</strong> 
+          <span style="color: #ccc;">${run.commentsAdded || 0}</span>
+        </div>
+        ${run.error ? `
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #ef4444;">Error:</strong> 
+            <span style="color: #ccc;">${run.error}</span>
+          </div>
+        ` : ''}
+        ${threadTitles.length > 0 ? `
+          <div style="margin-top: 1.5rem;">
+            <strong style="color: #3b82f6; display: block; margin-bottom: 0.75rem;">
+              Forum Threads Processed:
+            </strong>
+            <div style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); 
+                        border-radius: 8px; padding: 0.75rem;">
+              ${threadTitles.map((title, i) => `
+                <div style="padding: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); 
+                            color: #ccc;">
+                  <span style="color: #666;">${i + 1}.</span> ${title}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : threadTitles.length === 0 && run.status === 'completed' ? `
+          <div style="margin-top: 1.5rem; color: #666; font-style: italic;">
+            No thread titles recorded for this run.
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    Modal.show({
+      type: 'info',
+      title: 'Bot Run Details',
+      message: '', // Will be replaced by custom content
+      confirmText: 'Close',
+      confirmClass: 'modal-btn-primary',
+      onConfirm: () => {}
+    });
+
+    // Replace the modal body with custom content
+    setTimeout(() => {
+      document.getElementById('modalBody').innerHTML = modalContent;
+      // Hide the cancel button for this info modal
+      document.getElementById('modalCancel').style.display = 'none';
+    }, 10);
+  }
+
+  function generateMockThreadTitles(run) {
+    // This function is no longer needed since we use actual titles
+    // Keeping it for backwards compatibility with old runs that don't have titles stored
+    return [];
   }
 
   function getStatusClass(status) {
@@ -338,29 +431,29 @@
   function showChangeCredentialsModal() {
     // Create custom modal content with form
     const modalContent = `
-            <div style="text-align: left;">
-                <p style="color: #aaa; margin-bottom: 1.5rem;">
-                    Update your forum login credentials. They will be encrypted and stored securely.
-                </p>
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label for="modalForumUsername" style="color: #ccc; display: block; margin-bottom: 0.5rem;">
-                        Forum Username
-                    </label>
-                    <input type="text" id="modalForumUsername" value="${forumUsername || ""}" 
-                           style="width: 100%; padding: 0.7rem; background: rgba(0,0,0,0.3); 
-                                  border: 1px solid #444; border-radius: 8px; color: white;">
-                </div>
-                <div class="form-group">
-                    <label for="modalForumPassword" style="color: #ccc; display: block; margin-bottom: 0.5rem;">
-                        Forum Password
-                    </label>
-                    <input type="password" id="modalForumPassword" 
-                           placeholder="Enter new password" 
-                           style="width: 100%; padding: 0.7rem; background: rgba(0,0,0,0.3); 
-                                  border: 1px solid #444; border-radius: 8px; color: white;">
-                </div>
-            </div>
-        `;
+      <div style="text-align: left;">
+        <p style="color: #aaa; margin-bottom: 1.5rem;">
+          Update your forum login credentials. They will be encrypted and stored securely.
+        </p>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="modalForumUsername" style="color: #ccc; display: block; margin-bottom: 0.5rem;">
+            Forum Username
+          </label>
+          <input type="text" id="modalForumUsername" value="${forumUsername || ""}" 
+                 style="width: 100%; padding: 0.7rem; background: rgba(0,0,0,0.3); 
+                        border: 1px solid #444; border-radius: 8px; color: white;">
+        </div>
+        <div class="form-group">
+          <label for="modalForumPassword" style="color: #ccc; display: block; margin-bottom: 0.5rem;">
+            Forum Password
+          </label>
+          <input type="password" id="modalForumPassword" 
+                 placeholder="Enter new password" 
+                 style="width: 100%; padding: 0.7rem; background: rgba(0,0,0,0.3); 
+                        border: 1px solid #444; border-radius: 8px; color: white;">
+        </div>
+      </div>
+    `;
 
     // Show modal with custom content
     Modal.show({
@@ -449,23 +542,31 @@
   };
 
   window.refreshStats = async function () {
-    Toast.info("Refreshing", "Updating statistics...", 2000); // Short duration
-    await refreshStats();
-    // Use the fixed showRefreshIndicator
-    const indicator = document.createElement('div');
-    indicator.className = 'refresh-indicator show';
-    indicator.textContent = '✓ Updated';
-    indicator.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); z-index: 1000; transition: opacity 0.3s ease;';
-    document.body.appendChild(indicator);
+    // Show refreshing message first
+    Toast.info("Refreshing", "Updating statistics...", 1500);
     
-    setTimeout(() => {
-      indicator.style.opacity = '0';
+    // Wait a bit before actually refreshing
+    setTimeout(async () => {
+      await refreshStats();
+      
+      // Show updated indicator after a delay
       setTimeout(() => {
-        if (indicator.parentNode) {
-          indicator.parentNode.removeChild(indicator);
-        }
-      }, 300);
-    }, 2000);
+        const indicator = document.createElement('div');
+        indicator.className = 'refresh-indicator show';
+        indicator.textContent = '✓ Updated';
+        indicator.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); z-index: 1000; transition: opacity 0.3s ease;';
+        document.body.appendChild(indicator);
+        
+        setTimeout(() => {
+          indicator.style.opacity = '0';
+          setTimeout(() => {
+            if (indicator.parentNode) {
+              indicator.parentNode.removeChild(indicator);
+            }
+          }, 300);
+        }, 2000);
+      }, 500);
+    }, 100);
   };
 
   window.emergencyStop = async function () {

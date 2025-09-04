@@ -247,27 +247,40 @@ app.get("/api/forum-credentials", authenticateToken, async (req, res) => {
       });
     }
 
-    // Decrypt just the username for display (not the password)
+    // Try to decrypt username for display, but handle errors gracefully
     let forumUsername = null;
     try {
       forumUsername = encryption.decrypt(user.forumCredentials.username);
     } catch (error) {
-      console.error("Error decrypting username for display:", error);
+      console.error("Error decrypting username for display:", error.message);
+      // If decryption fails, clear the corrupted credentials
+      console.log("Clearing corrupted credentials for user:", req.user.username);
+      user.forumCredentials = null;
+      await saveUsers(users);
+      
+      return res.json({
+        success: true,
+        data: {
+          hasCredentials: false,
+          message: "Credentials were corrupted and have been cleared. Please re-enter them."
+        },
+      });
     }
 
     res.json({
       success: true,
       data: {
         hasCredentials: true,
-        username: forumUsername, // Send decrypted username for display
+        username: forumUsername,
         lastUpdated: user.forumCredentials.updatedAt,
       },
     });
   } catch (error) {
     console.error("Credentials fetch error:", error);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch credentials status" });
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to fetch credentials status" 
+    });
   }
 });
 
@@ -336,9 +349,24 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
       });
     }
 
-    // Decrypt credentials
-    const forumUsername = encryption.decrypt(user.forumCredentials.username);
-    const forumPassword = encryption.decrypt(user.forumCredentials.password);
+    // Try to decrypt credentials
+    let forumUsername, forumPassword;
+    try {
+      forumUsername = encryption.decrypt(user.forumCredentials.username);
+      forumPassword = encryption.decrypt(user.forumCredentials.password);
+    } catch (error) {
+      console.error("Error decrypting credentials:", error.message);
+      
+      // Clear corrupted credentials
+      console.log("Clearing corrupted credentials for user:", req.user.username);
+      user.forumCredentials = null;
+      await saveUsers(users);
+      
+      return res.json({
+        success: false,
+        message: "Your forum credentials were corrupted and have been cleared. Please re-enter them in the dashboard.",
+      });
+    }
 
     // IMPORTANT: Update stats BEFORE starting the bot
     const stats = await loadUserStats(userId);
@@ -359,24 +387,23 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
 
     botManager.once("botCompleted", async (data) => {
       if (data.userId === userId) {
-        // Load current stats to ensure we have the updated totalRuns
-        const currentStats = await loadUserStats(userId);
-        
-        // Update only the completion-related fields
-        currentStats.totalPostsUpdated = (currentStats.totalPostsUpdated || 0) + data.stats.postsUpdated;
-        currentStats.totalCommentsAdded = (currentStats.totalCommentsAdded || 0) + data.stats.commentsAdded;
-        currentStats.lastRunStatus = "completed";
+        // Update stats with thread titles
+        const stats = await loadUserStats(userId);
+        stats.totalPostsUpdated += data.stats.postsUpdated;
+        stats.totalCommentsAdded += data.stats.commentsAdded;
+        stats.lastRunStatus = "completed";
 
-        if (!currentStats.runHistory) currentStats.runHistory = [];
-        currentStats.runHistory.unshift({
+        if (!stats.runHistory) stats.runHistory = [];
+        stats.runHistory.unshift({
           date: new Date().toISOString(),
           postsUpdated: data.stats.postsUpdated,
           commentsAdded: data.stats.commentsAdded,
           status: "completed",
+          threadTitles: data.stats.threadTitles || [] // Store actual thread titles
         });
-        currentStats.runHistory = currentStats.runHistory.slice(0, 50);
+        stats.runHistory = stats.runHistory.slice(0, 50);
 
-        await saveUserStats(userId, currentStats);
+        await saveUserStats(userId, stats);
 
         broadcastToUser(userId, {
           type: "botCompleted",
@@ -391,21 +418,21 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
 
     botManager.once("botError", async (data) => {
       if (data.userId === userId) {
-        // Load current stats to ensure we have the updated totalRuns
-        const currentStats = await loadUserStats(userId);
-        currentStats.lastRunStatus = "error";
+        // Update stats with error
+        const stats = await loadUserStats(userId);
+        stats.lastRunStatus = "error";
 
-        if (!currentStats.runHistory) currentStats.runHistory = [];
-        currentStats.runHistory.unshift({
+        if (!stats.runHistory) stats.runHistory = [];
+        stats.runHistory.unshift({
           date: new Date().toISOString(),
           postsUpdated: 0,
           commentsAdded: 0,
           status: "error",
           error: data.error,
         });
-        currentStats.runHistory = currentStats.runHistory.slice(0, 50);
+        stats.runHistory = stats.runHistory.slice(0, 50);
 
-        await saveUserStats(userId, currentStats);
+        await saveUserStats(userId, stats);
 
         broadcastToUser(userId, {
           type: "botError",
@@ -434,27 +461,19 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
     );
 
     if (success) {
+      // Update stats
+      const stats = await loadUserStats(userId);
+      stats.totalRuns += 1;
+      stats.lastRunDate = new Date().toISOString();
+      stats.lastRunStatus = "running";
+      await saveUserStats(userId, stats);
+
       res.json({ success: true, message: "Bot started successfully" });
     } else {
-      // If bot failed to start, update the stats
-      const currentStats = await loadUserStats(userId);
-      currentStats.lastRunStatus = "error";
-      await saveUserStats(userId, currentStats);
-      
       res.json({ success: false, message: "Failed to start bot" });
     }
   } catch (error) {
     console.error("Bot start error:", error);
-    
-    // On error, update stats
-    try {
-      const currentStats = await loadUserStats(userId);
-      currentStats.lastRunStatus = "error";
-      await saveUserStats(userId, currentStats);
-    } catch (statsError) {
-      console.error("Failed to update stats after error:", statsError);
-    }
-    
     res.status(500).json({
       success: false,
       message: "Failed to start bot: " + error.message,
