@@ -8,6 +8,7 @@ node_modules/
 users.json
 user_stats/
 credentials.json
+.data/
 
 # Logs
 *.log

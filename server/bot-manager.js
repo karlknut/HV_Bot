@@ -1,5 +1,4 @@
-// bot-manager.js - Centralized bot management logic
-const { spawn } = require("child_process");
+// bot-manager.js - Fixed with thread title support
 const EventEmitter = require("events");
 const path = require("path");
 
@@ -7,7 +6,7 @@ class BotManager extends EventEmitter {
   constructor() {
     super();
     this.bots = new Map(); // userId -> { process, status, startTime }
-    this.stats = new Map(); // userId -> { postsUpdated, commentsAdded }
+    this.stats = new Map(); // userId -> { postsUpdated, commentsAdded, threadTitles }
   }
 
   /**
@@ -38,6 +37,7 @@ class BotManager extends EventEmitter {
       this.stats.set(userId, {
         postsUpdated: 0,
         commentsAdded: 0,
+        threadTitles: []
       });
 
       // Emit bot started event
@@ -51,12 +51,12 @@ class BotManager extends EventEmitter {
         this.emit("botOutput", { userId, message });
       });
 
-      // Update stats
-    this.stats.set(userId, {
-      postsUpdated: result.postsUpdated || 0,
-      commentsAdded: result.commentsAdded || 0,
-      threadTitles: result.threadTitles || [] // Include thread titles
-    });
+      // Update stats with actual thread titles
+      this.stats.set(userId, {
+        postsUpdated: result.postsUpdated || 0,
+        commentsAdded: result.commentsAdded || 0,
+        threadTitles: result.threadTitles || [] // Make sure threadTitles are included
+      });
 
       // Update bot state
       const bot = this.bots.get(userId);
@@ -64,11 +64,15 @@ class BotManager extends EventEmitter {
         bot.status = "completed";
       }
 
-      // Emit completion event
+      // Emit completion event with thread titles
       this.emit("botCompleted", {
         userId,
         timestamp: new Date().toISOString(),
-        stats: this.stats.get(userId),
+        stats: {
+          postsUpdated: result.postsUpdated || 0,
+          commentsAdded: result.commentsAdded || 0,
+          threadTitles: result.threadTitles || []
+        }
       });
 
       return true;
@@ -155,7 +159,7 @@ class BotManager extends EventEmitter {
       return {
         isRunning: false,
         status: "idle",
-        stats: stats || { postsUpdated: 0, commentsAdded: 0 },
+        stats: stats || { postsUpdated: 0, commentsAdded: 0, threadTitles: [] },
       };
     }
 
@@ -164,7 +168,7 @@ class BotManager extends EventEmitter {
       status: bot.status,
       startTime: bot.startTime,
       error: bot.error,
-      stats: stats || { postsUpdated: 0, commentsAdded: 0 },
+      stats: stats || { postsUpdated: 0, commentsAdded: 0, threadTitles: [] },
     };
   }
 

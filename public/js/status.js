@@ -68,7 +68,25 @@
     }
   }
 
+  // Track processed message IDs to prevent duplicates
+  const processedMessages = new Set();
+  
   function handleWebSocketMessage(message) {
+    // Create a unique ID for this message
+    const messageId = `${message.type}_${message.timestamp || Date.now()}_${JSON.stringify(message.data).substring(0, 50)}`;
+    
+    // Skip if we've already processed this message
+    if (processedMessages.has(messageId)) {
+      return;
+    }
+    
+    // Add to processed set and clean up old messages
+    processedMessages.add(messageId);
+    if (processedMessages.size > 100) {
+      const oldestMessages = Array.from(processedMessages).slice(0, 50);
+      oldestMessages.forEach(id => processedMessages.delete(id));
+    }
+    
     console.log("WebSocket message:", message);
 
     switch (message.type) {
@@ -373,12 +391,6 @@
       // Hide the cancel button for this info modal
       document.getElementById('modalCancel').style.display = 'none';
     }, 10);
-  }
-
-  function generateMockThreadTitles(run) {
-    // This function is no longer needed since we use actual titles
-    // Keeping it for backwards compatibility with old runs that don't have titles stored
-    return [];
   }
 
   function getStatusClass(status) {
