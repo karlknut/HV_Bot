@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Price Tracker - HV Forum Bot</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/gpu-tracker.css">
+</head>
+<body>
+    <canvas id="starfield"></canvas>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <div class="header-logo">
+                <div class="header-logo-icon">HV</div>
+                <h1>Forum Bot</h1>
+            </div>
+            <nav class="header-nav">
+                <a href="/dashboard" class="nav-link">Dashboard</a>
+                <a href="/gpu-tracker" class="nav-link active">GPU Tracker</a>
+                <a href="/status" class="nav-link">Status</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <div class="user-badge">
+                <div class="user-avatar" id="userAvatar">--</div>
+                <div class="user-info-text">
+                    <span class="user-label">Logged in as</span>
+                    <span class="user-name" id="userName">Loading...</span>
+                </div>
+            </div>
+            <button class="logout-btn" id="logoutBtn">Logout</button>
+        </div>
+    </div>
+
+    <div class="gpu-tracker-container">
+        <!-- Page Title -->
+        <div class="page-title">
+            <h2>GPU Price Tracker</h2>
+            <p class="page-subtitle">Monitor graphics card prices from the forum marketplace</p>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="controls-section">
+            <button class="btn btn-primary" id="scanButton" onclick="startGPUScan()">
+                <span class="btn-icon">🔍</span>
+                <span>Scan Forum</span>
+            </button>
+            <button class="btn btn-secondary" onclick="refreshListings()">
+                <span class="btn-icon">🔄</span>
+                <span>Refresh</span>
+            </button>
+            <button class="btn btn-secondary" onclick="toggleFilters()">
+                <span class="btn-icon">⚙️</span>
+                <span>Filters</span>
+            </button>
+        </div>
+
+        <!-- Scan Progress -->
+        <div class="scan-progress" id="scanProgress" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p class="progress-text" id="progressText">Scanning forum...</p>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="filters-section" id="filtersSection" style="display: none;">
+            <div class="filter-group">
+                <label>GPU Model</label>
+                <input type="text" id="modelFilter" placeholder="e.g., RTX 4070">
+            </div>
+            <div class="filter-group">
+                <label>Min Price</label>
+                <input type="number" id="minPriceFilter" placeholder="0">
+            </div>
+            <div class="filter-group">
+                <label>Max Price</label>
+                <input type="number" id="maxPriceFilter" placeholder="9999">
+            </div>
+            <div class="filter-group">
+                <label>Currency</label>
+                <select id="currencyFilter">
+                    <option value="">All</option>
+                    <option value="€">Euro (€)</option>
+                    <option value="AH">AH</option>
+                    <option value="OK">OK</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Listings</h3>
+                <div class="stat-value" id="totalListings">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Average Price</h3>
+                <div class="stat-value" id="avgPrice">€0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Lowest Price</h3>
+                <div class="stat-value" id="lowestPrice">€0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Last Scan</h3>
+                <div class="stat-value stat-small" id="lastScan">Never</div>
+            </div>
+        </div>
+
+        <!-- GPU Listings Table -->
+        <div class="listings-section">
+            <h3>GPU Listings</h3>
+            <div class="table-container">
+                <table class="gpu-table" id="gpuTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('model')">Model ↕</th>
+                            <th onclick="sortTable('price')">Price ↕</th>
+                            <th>Currency</th>
+                            <th>Title</th>
+                            <th>Author</th>
+                            <th onclick="sortTable('date')">Date ↕</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gpuTableBody">
+                        <tr>
+                            <td colspan="7" class="table-empty">No listings yet. Click "Scan Forum" to start.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Price History Chart -->
+        <div class="chart-section" id="chartSection" style="display: none;">
+            <h3>Price History</h3>
+            <canvas id="priceChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Modal for GPU Details -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 id="modalTitle" class="modal-title">GPU Details</h2>
+            </div>
+            <div id="modalBody" class="modal-body"></div>
+            <div id="modalActions" class="modal-actions">
+                <button id="modalClose" class="modal-btn modal-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/gpu-tracker.js"></script>
+</body>
+</html>

@@ -71,6 +71,10 @@ app.get("/status", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "pages", "status.html"));
 });
 
+app.get("/gpu-tracker", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "pages", "gpu-tracker.html"));
+});
+
 // Authentication routes
 app.post("/api/register", async (req, res) => {
   try {
@@ -476,6 +480,110 @@ app.post("/api/stop-bot", authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to stop bot: " + error.message,
+    });
+  }
+});
+
+app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  
+  try {
+    const GPUPriceTracker = require("./gpu-tracker");
+    const tracker = new GPUPriceTracker((message) => {
+      // Send progress updates via WebSocket
+      broadcastToUser(userId, {
+        type: "gpuScanUpdate",
+        data: message
+      });
+    });
+    
+    // Get forum credentials
+    const credentials = await db.getForumCredentials(userId);
+    if (!credentials) {
+      return res.json({
+        success: false,
+        message: "Forum credentials required"
+      });
+    }
+    
+    // Run the GPU scanner
+    const result = await tracker.run(credentials.username, credentials.password);
+    
+    if (result.success) {
+      // Save to database
+      for (const gpu of result.data) {
+        await db.saveGPUListing(gpu);
+      }
+      
+      // Update price history
+      await db.updateGPUPriceHistory();
+    }
+    
+    res.json(result);
+  } catch (error) {
+    console.error("GPU scan error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/gpu/listings", authenticateToken, async (req, res) => {
+  try {
+    const { model, minPrice, maxPrice, currency, limit = 50 } = req.query;
+    
+    const listings = await db.getGPUListings({
+      model,
+      minPrice: minPrice ? parseFloat(minPrice) : null,
+      maxPrice: maxPrice ? parseFloat(maxPrice) : null,
+      currency,
+      limit: parseInt(limit)
+    });
+    
+    res.json({
+      success: true,
+      data: listings
+    });
+  } catch (error) {
+    console.error("GPU listings error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/gpu/models", authenticateToken, async (req, res) => {
+  try {
+    const models = await db.getGPUModels();
+    res.json({
+      success: true,
+      data: models
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/gpu/price-history/:model", authenticateToken, async (req, res) => {
+  try {
+    const { model } = req.params;
+    const { days = 30 } = req.query;
+    
+    const history = await db.getGPUPriceHistory(model, parseInt(days));
+    
+    res.json({
+      success: true,
+      data: history
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

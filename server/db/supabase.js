@@ -266,5 +266,113 @@ const db = {
   },
 };
 
-// IMPORTANT: Export the module
-module.exports = { supabase, db, encryption };
+const gpuDb = {
+  async saveGPUListing(listing) {
+    const { data, error } = await supabase
+      .from('gpu_listings')
+      .insert([listing])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+  
+  async getGPUListings(filters = {}) {
+    let query = supabase
+      .from('gpu_listings')
+      .select('*')
+      .order('scraped_at', { ascending: false });
+    
+    if (filters.model) {
+      query = query.ilike('model', `%${filters.model}%`);
+    }
+    
+    if (filters.minPrice) {
+      query = query.gte('price', filters.minPrice);
+    }
+    
+    if (filters.maxPrice) {
+      query = query.lte('price', filters.maxPrice);
+    }
+    
+    if (filters.currency) {
+      query = query.eq('currency', filters.currency);
+    }
+    
+    if (filters.limit) {
+      query = query.limit(filters.limit);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  },
+  
+  async getGPUModels() {
+    const { data, error } = await supabase
+      .from('gpu_models')
+      .select('*')
+      .order('brand', { ascending: true });
+    
+    if (error) throw error;
+    return data;
+  },
+  
+  async getGPUPriceHistory(model, days) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const { data, error } = await supabase
+      .from('gpu_price_history')
+      .select('*')
+      .eq('gpu_model', model)
+      .gte('date', startDate.toISOString())
+      .order('date', { ascending: true });
+    
+    if (error) throw error;
+    return data;
+  },
+  
+  async updateGPUPriceHistory() {
+    // Calculate daily averages
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { data: listings } = await supabase
+      .from('gpu_listings')
+      .select('model, price')
+      .gte('scraped_at', today);
+    
+    // Group by model and calculate stats
+    const modelStats = {};
+    listings.forEach(listing => {
+      if (!modelStats[listing.model]) {
+        modelStats[listing.model] = {
+          prices: [],
+          count: 0
+        };
+      }
+      modelStats[listing.model].prices.push(listing.price);
+      modelStats[listing.model].count++;
+    });
+    
+    // Save to history
+    for (const [model, stats] of Object.entries(modelStats)) {
+      const prices = stats.prices.sort((a, b) => a - b);
+      const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+      
+      await supabase
+        .from('gpu_price_history')
+        .upsert([{
+          gpu_model: model,
+          avg_price: avg,
+          min_price: prices[0],
+          max_price: prices[prices.length - 1],
+          listing_count: stats.count,
+          date: today
+        }]);
+    }
+  }
+};
+
+module.exports = { supabase, db, encryption, gpuDb };
