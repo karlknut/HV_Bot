@@ -12,7 +12,7 @@ async function runForumBot(username, password, updateCallback = console.log) {
 
     updateCallback("Launching browser...");
     browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       defaultViewport: null,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });

@@ -72,7 +72,9 @@ app.get("/status", (req, res) => {
 });
 
 app.get("/gpu-tracker", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "pages", "gpu-tracker.html"));
+  res.sendFile(
+    path.join(__dirname, "..", "public", "pages", "gpu-tracker.html"),
+  );
 });
 
 // Authentication routes
@@ -486,104 +488,444 @@ app.post("/api/stop-bot", authenticateToken, async (req, res) => {
 
 app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
-  
+
   try {
-    const GPUPriceTracker = require("./gpu-tracker");
+    const { GPUPriceTracker, GPUPriceAlertSystem } = require("./gpu-tracker");
     const tracker = new GPUPriceTracker((message) => {
       // Send progress updates via WebSocket
       broadcastToUser(userId, {
         type: "gpuScanUpdate",
-        data: message
+        data: message,
       });
     });
-    
+
     // Get forum credentials
     const credentials = await db.getForumCredentials(userId);
     if (!credentials) {
       return res.json({
         success: false,
-        message: "Forum credentials required"
+        message: "Forum credentials required",
       });
     }
-    
-    // Run the GPU scanner
-    const result = await tracker.run(credentials.username, credentials.password);
-    
-    if (result.success) {
-      // Save to database
+
+    // Run the enhanced GPU scanner
+    const result = await tracker.run(
+      credentials.username,
+      credentials.password,
+      userId,
+    );
+
+    if (result.success && result.data.length > 0) {
+      // Save to database with user tracking
+      let savedCount = 0;
+      const errors = [];
+
       for (const gpu of result.data) {
-        await db.saveGPUListing(gpu);
+        try {
+          gpu.user_id = userId; // Track which user scraped this
+
+          // Ensure all required fields are present
+          const gpuListing = {
+            model: gpu.model,
+            brand: gpu.brand || "Unknown",
+            price: gpu.price,
+            currency: gpu.currency,
+            title: gpu.title,
+            url: gpu.url,
+            author: gpu.author || "Unknown",
+            source: gpu.source || "forum",
+            user_id: userId,
+            scraped_at: gpu.scraped_at || new Date().toISOString(),
+          };
+
+          await db.saveGPUListing(gpuListing);
+          savedCount++;
+
+          console.log(
+            `Saved GPU listing: ${gpu.model} - ${gpu.price}${gpu.currency}`,
+          );
+        } catch (saveError) {
+          console.warn("Error saving GPU listing:", saveError.message);
+          errors.push(`Failed to save ${gpu.model}: ${saveError.message}`);
+        }
       }
-      
+
       // Update price history
-      await db.updateGPUPriceHistory();
+      try {
+        await db.updateGPUPriceHistory();
+        console.log("Price history updated successfully");
+      } catch (historyError) {
+        console.warn("Error updating price history:", historyError.message);
+        errors.push(`Price history update failed: ${historyError.message}`);
+      }
+
+      // Check price alerts with proper error handling
+      try {
+        // Create alert system instance properly
+        const alertSystem = new GPUPriceAlertSystem(db);
+        const triggeredAlerts = await alertSystem.checkAlerts();
+
+        if (triggeredAlerts.length > 0) {
+          console.log(`Found ${triggeredAlerts.length} triggered alerts`);
+
+          // Notify users about triggered alerts
+          triggeredAlerts.forEach((trigger) => {
+            try {
+              broadcastToUser(trigger.alert.user_id, {
+                type: "priceAlert",
+                data: {
+                  model: trigger.listing.model,
+                  price: trigger.listing.price,
+                  currency: trigger.listing.currency,
+                  targetPrice: trigger.alert.target_price,
+                  url: trigger.listing.url,
+                },
+              });
+            } catch (notifyError) {
+              console.warn(
+                "Error sending alert notification:",
+                notifyError.message,
+              );
+            }
+          });
+        }
+      } catch (alertError) {
+        console.warn("Error checking price alerts:", alertError.message);
+        errors.push(`Alert check failed: ${alertError.message}`);
+      }
+
+      const responseData = {
+        ...result,
+        savedListings: savedCount,
+        errors: errors.length > 0 ? errors : undefined,
+        message: `Successfully found ${result.totalListings} listings, saved ${savedCount} GPU entries`,
+      };
+
+      if (errors.length > 0) {
+        responseData.warnings = errors;
+      }
+
+      res.json(responseData);
+    } else {
+      res.json({
+        ...result,
+        savedListings: 0,
+        message: result.error || "No GPU listings found",
+      });
     }
-    
-    res.json(result);
   } catch (error) {
     console.error("GPU scan error:", error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 });
+
+// Get GPU listings with enhanced filtering
+// Add this debug version to your server API endpoint
+// Replace the /api/gpu/listings endpoint with this debug version
 
 app.get("/api/gpu/listings", authenticateToken, async (req, res) => {
   try {
-    const { model, minPrice, maxPrice, currency, limit = 50 } = req.query;
-    
+    console.log("=== GPU LISTINGS API DEBUG ===");
+    console.log("Request query:", req.query);
+
+    const {
+      model,
+      brand,
+      minPrice,
+      maxPrice,
+      currency,
+      limit = 100,
+      sortBy = "scraped_at",
+      sortOrder = "desc",
+    } = req.query;
+
+    console.log("Parsed filters:", {
+      model,
+      brand,
+      minPrice,
+      maxPrice,
+      currency,
+      limit,
+      sortBy,
+      sortOrder,
+    });
+
     const listings = await db.getGPUListings({
       model,
+      brand,
       minPrice: minPrice ? parseFloat(minPrice) : null,
       maxPrice: maxPrice ? parseFloat(maxPrice) : null,
       currency,
-      limit: parseInt(limit)
+      limit: parseInt(limit),
     });
-    
+
+    console.log("Raw database response:", listings);
+    console.log(
+      "Number of listings:",
+      listings ? listings.length : "null/undefined",
+    );
+
+    if (!listings) {
+      console.log("WARNING: Database returned null/undefined");
+      return res.json({
+        success: true,
+        data: [],
+        total: 0,
+        debug: "Database returned null",
+      });
+    }
+
+    if (!Array.isArray(listings)) {
+      console.log("WARNING: Database returned non-array:", typeof listings);
+      return res.json({
+        success: true,
+        data: [],
+        total: 0,
+        debug: `Database returned ${typeof listings}, not array`,
+      });
+    }
+
+    // Sort listings
+    listings.sort((a, b) => {
+      let aVal = a[sortBy];
+      let bVal = b[sortBy];
+
+      if (sortBy === "price") {
+        aVal = parseFloat(aVal) || 0;
+        bVal = parseFloat(bVal) || 0;
+      } else if (sortBy === "scraped_at") {
+        aVal = new Date(aVal);
+        bVal = new Date(bVal);
+      }
+
+      if (sortOrder === "asc") {
+        return aVal > bVal ? 1 : -1;
+      } else {
+        return aVal < bVal ? 1 : -1;
+      }
+    });
+
+    console.log("Sorted listings sample:", listings.slice(0, 3));
+    console.log("Sending response...");
+
     res.json({
       success: true,
-      data: listings
+      data: listings,
+      total: listings.length,
+      debug: {
+        query: req.query,
+        count: listings.length,
+        sample: listings.slice(0, 2),
+      },
     });
   } catch (error) {
     console.error("GPU listings error:", error);
+    console.error("Error stack:", error.stack);
+
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      debug: {
+        stack: error.stack,
+        query: req.query,
+      },
     });
   }
 });
 
-app.get("/api/gpu/models", authenticateToken, async (req, res) => {
+// Get GPU market statistics and trends
+app.get("/api/gpu/stats", authenticateToken, async (req, res) => {
   try {
-    const models = await db.getGPUModels();
+    const stats = await db.getGPUStats();
+
     res.json({
       success: true,
-      data: models
+      data: stats,
     });
   } catch (error) {
+    console.error("GPU stats error:", error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 });
 
-app.get("/api/gpu/price-history/:model", authenticateToken, async (req, res) => {
+// Get price history for a specific GPU model
+app.get(
+  "/api/gpu/price-history/:model",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { model } = req.params;
+      const { days = 30 } = req.query;
+
+      const history = await db.getGPUPriceHistory(model, parseInt(days));
+
+      res.json({
+        success: true,
+        data: history,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+// Create price alert
+app.post("/api/gpu/alerts", authenticateToken, async (req, res) => {
   try {
-    const { model } = req.params;
-    const { days = 30 } = req.query;
-    
-    const history = await db.getGPUPriceHistory(model, parseInt(days));
-    
+    const {
+      gpuModel,
+      targetPrice,
+      currency = "€",
+      alertType = "below",
+    } = req.body;
+
+    if (!gpuModel || !targetPrice) {
+      return res.status(400).json({
+        success: false,
+        error: "GPU model and target price are required",
+      });
+    }
+
+    const alert = await db.createPriceAlert(req.user.userId, {
+      gpuModel,
+      targetPrice: parseFloat(targetPrice),
+      currency,
+      alertType,
+    });
+
     res.json({
       success: true,
-      data: history
+      data: alert,
     });
   } catch (error) {
+    console.error("Create alert error:", error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+    });
+  }
+});
+
+// Get user's price alerts
+app.get("/api/gpu/alerts", authenticateToken, async (req, res) => {
+  try {
+    const alerts = await db.getUserPriceAlerts(req.user.userId);
+
+    res.json({
+      success: true,
+      data: alerts,
+    });
+  } catch (error) {
+    console.error("Get alerts error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Delete price alert
+app.delete("/api/gpu/alerts/:alertId", authenticateToken, async (req, res) => {
+  try {
+    const { alertId } = req.params;
+
+    const { error } = await supabase
+      .from("gpu_price_alerts")
+      .update({ is_active: false })
+      .eq("id", alertId)
+      .eq("user_id", req.user.userId); // Ensure user can only delete their own alerts
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: "Alert deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete alert error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Market analysis endpoint
+app.get("/api/gpu/market-analysis", authenticateToken, async (req, res) => {
+  try {
+    const { days = 7 } = req.query;
+
+    // Get recent listings
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(days));
+
+    const { data: recentListings } = await supabase
+      .from("gpu_listings")
+      .select("*")
+      .gte("scraped_at", startDate.toISOString());
+
+    if (!recentListings || recentListings.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          message: "No recent listings found",
+          trends: {},
+          summary: {
+            totalListings: 0,
+            uniqueModels: 0,
+            priceRange: { min: 0, max: 0 },
+          },
+        },
+      });
+    }
+
+    // Use AI analysis from tracker
+    const { GPUPriceTracker } = require("./gpu-tracker");
+    const trends = GPUPriceTracker.analyzeMarketTrends(recentListings);
+
+    // Calculate summary stats
+    const allPrices = recentListings.map((l) => l.price);
+    const uniqueModels = [...new Set(recentListings.map((l) => l.model))];
+
+    const summary = {
+      totalListings: recentListings.length,
+      uniqueModels: uniqueModels.length,
+      priceRange: {
+        min: Math.min(...allPrices),
+        max: Math.max(...allPrices),
+      },
+      averagePrice: Math.round(
+        allPrices.reduce((a, b) => a + b, 0) / allPrices.length,
+      ),
+      analyzedPeriod: `${days} days`,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        trends,
+        summary,
+        topModels: Object.entries(trends)
+          .sort(([, a], [, b]) => b.count - a.count)
+          .slice(0, 10)
+          .map(([model, data]) => ({ model, ...data })),
+      },
+    });
+  } catch (error) {
+    console.error("Market analysis error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 });

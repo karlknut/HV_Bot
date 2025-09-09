@@ -1,4 +1,4 @@
-// server/db/supabase.js - Fixed version with proper exports
+// server/db/supabase.js - Fixed version with GPU functions merged into main db object
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 
@@ -45,7 +45,7 @@ class CredentialEncryption {
 
 const encryption = new CredentialEncryption(process.env.ENCRYPTION_KEY);
 
-// Database functions
+// Main database functions
 const db = {
   // User Management
   async createUser(username, passwordHash) {
@@ -72,7 +72,7 @@ const db = {
       .eq("username", username)
       .single();
 
-    if (error && error.code !== "PGRST116") throw error; // PGRST116 = not found
+    if (error && error.code !== "PGRST116") throw error;
     return data;
   },
 
@@ -167,7 +167,6 @@ const db = {
   },
 
   async updateUserStats(userId, stats) {
-    // First check if stats exist
     const { data: existing } = await supabase
       .from("user_stats")
       .select("*")
@@ -175,7 +174,6 @@ const db = {
       .single();
 
     if (existing) {
-      // Update existing record
       const { data, error } = await supabase
         .from("user_stats")
         .update({
@@ -189,7 +187,6 @@ const db = {
       if (error) throw error;
       return data;
     } else {
-      // Insert new record
       const { data, error } = await supabase
         .from("user_stats")
         .insert([
@@ -242,9 +239,7 @@ const db = {
     return data || [];
   },
 
-  // Cleanup function for old runs
   async cleanupOldRuns(userId, keepCount = 50) {
-    // Get all runs for user
     const { data: runs, error: fetchError } = await supabase
       .from("run_history")
       .select("id")
@@ -264,115 +259,332 @@ const db = {
       if (deleteError) throw deleteError;
     }
   },
-};
 
-const gpuDb = {
+  // =================== GPU TRACKING FUNCTIONS ===================
+
   async saveGPUListing(listing) {
     const { data, error } = await supabase
-      .from('gpu_listings')
-      .insert([listing])
+      .from("gpu_listings")
+      .insert([
+        {
+          model: listing.model,
+          brand: listing.brand || this.extractBrand(listing.model),
+          price: listing.price,
+          currency: listing.currency,
+          title: listing.title,
+          url: listing.url,
+          author: listing.author,
+          source: listing.source || "forum",
+          scraped_at: listing.scraped_at || new Date().toISOString(),
+          user_id: listing.user_id, // Track which user scraped this
+        },
+      ])
       .select()
       .single();
-    
+
     if (error) throw error;
     return data;
   },
-  
+
   async getGPUListings(filters = {}) {
     let query = supabase
-      .from('gpu_listings')
-      .select('*')
-      .order('scraped_at', { ascending: false });
-    
+      .from("gpu_listings")
+      .select("*")
+      .order("scraped_at", { ascending: false });
+
     if (filters.model) {
-      query = query.ilike('model', `%${filters.model}%`);
+      query = query.ilike("model", `%${filters.model}%`);
     }
-    
+
+    if (filters.brand) {
+      query = query.ilike("brand", `%${filters.brand}%`);
+    }
+
     if (filters.minPrice) {
-      query = query.gte('price', filters.minPrice);
+      query = query.gte("price", parseFloat(filters.minPrice));
     }
-    
+
     if (filters.maxPrice) {
-      query = query.lte('price', filters.maxPrice);
+      query = query.lte("price", parseFloat(filters.maxPrice));
     }
-    
+
     if (filters.currency) {
-      query = query.eq('currency', filters.currency);
+      query = query.eq("currency", filters.currency);
     }
-    
+
     if (filters.limit) {
-      query = query.limit(filters.limit);
+      query = query.limit(parseInt(filters.limit));
     }
-    
+
     const { data, error } = await query;
     if (error) throw error;
-    return data;
+    return data || [];
   },
-  
-  async getGPUModels() {
+
+  async getGPUStats() {
     const { data, error } = await supabase
-      .from('gpu_models')
-      .select('*')
-      .order('brand', { ascending: true });
-    
+      .from("gpu_listings")
+      .select("model, price, currency, scraped_at");
+
     if (error) throw error;
-    return data;
-  },
-  
-  async getGPUPriceHistory(model, days) {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    
-    const { data, error } = await supabase
-      .from('gpu_price_history')
-      .select('*')
-      .eq('gpu_model', model)
-      .gte('date', startDate.toISOString())
-      .order('date', { ascending: true });
-    
-    if (error) throw error;
-    return data;
-  },
-  
-  async updateGPUPriceHistory() {
-    // Calculate daily averages
-    const today = new Date().toISOString().split('T')[0];
-    
-    const { data: listings } = await supabase
-      .from('gpu_listings')
-      .select('model, price')
-      .gte('scraped_at', today);
-    
+
     // Group by model and calculate stats
     const modelStats = {};
-    listings.forEach(listing => {
+
+    data.forEach((listing) => {
       if (!modelStats[listing.model]) {
         modelStats[listing.model] = {
           prices: [],
-          count: 0
+          count: 0,
+          currencies: new Set(),
+          latestDate: listing.scraped_at,
         };
       }
+
       modelStats[listing.model].prices.push(listing.price);
       modelStats[listing.model].count++;
+      modelStats[listing.model].currencies.add(listing.currency);
+
+      if (
+        new Date(listing.scraped_at) >
+        new Date(modelStats[listing.model].latestDate)
+      ) {
+        modelStats[listing.model].latestDate = listing.scraped_at;
+      }
     });
-    
-    // Save to history
-    for (const [model, stats] of Object.entries(modelStats)) {
+
+    // Calculate averages, min, max for each model
+    const results = Object.entries(modelStats).map(([model, stats]) => {
       const prices = stats.prices.sort((a, b) => a - b);
-      const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-      
-      await supabase
-        .from('gpu_price_history')
-        .upsert([{
+      const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+
+      return {
+        model,
+        avgPrice: Math.round(avgPrice),
+        minPrice: prices[0],
+        maxPrice: prices[prices.length - 1],
+        listingCount: stats.count,
+        currencies: Array.from(stats.currencies),
+        latestDate: stats.latestDate,
+      };
+    });
+
+    return results.sort((a, b) => b.listingCount - a.listingCount);
+  },
+
+  async getGPUPriceHistory(model, days = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const { data, error } = await supabase
+      .from("gpu_price_history")
+      .select("*")
+      .eq("gpu_model", model)
+      .gte("date", startDate.toISOString().split("T")[0])
+      .order("date", { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async updateGPUPriceHistory() {
+    // Calculate daily averages for the current day
+    const today = new Date().toISOString().split("T")[0];
+
+    const { data: listings } = await supabase
+      .from("gpu_listings")
+      .select("model, brand, price, currency")
+      .gte("scraped_at", today);
+
+    if (!listings || listings.length === 0) {
+      console.log("No GPU listings found for today");
+      return;
+    }
+
+    // Group by model and calculate stats
+    const modelStats = {};
+    listings.forEach((listing) => {
+      const key = listing.model;
+      if (!modelStats[key]) {
+        modelStats[key] = {
+          prices: [],
+          brand: listing.brand || this.extractBrand(listing.model),
+          currencies: new Set(),
+        };
+      }
+      modelStats[key].prices.push(listing.price);
+      modelStats[key].currencies.add(listing.currency);
+    });
+
+    // Save to price history using individual upserts
+    for (const [model, stats] of Object.entries(modelStats)) {
+      try {
+        const prices = stats.prices.sort((a, b) => a - b);
+        const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+
+        const historyRecord = {
           gpu_model: model,
-          avg_price: avg,
+          brand: stats.brand,
+          avg_price: Math.round(avgPrice),
           min_price: prices[0],
           max_price: prices[prices.length - 1],
-          listing_count: stats.count,
-          date: today
-        }]);
+          listing_count: stats.prices.length,
+          currencies: Array.from(stats.currencies),
+          date: today,
+        };
+
+        // Use individual upsert for each model
+        const { error } = await supabase
+          .from("gpu_price_history")
+          .upsert([historyRecord], {
+            onConflict: "gpu_model,date",
+            ignoreDuplicates: false,
+          });
+
+        if (error) {
+          console.error(`Error updating price history for ${model}:`, error);
+          // Continue with other models even if one fails
+        }
+      } catch (modelError) {
+        console.error(`Error processing model ${model}:`, modelError);
+      }
     }
-  }
+
+    console.log(
+      `Updated price history for ${Object.keys(modelStats).length} GPU models`,
+    );
+  },
+
+  // Price Alert Functions
+  async createPriceAlert(userId, alertData) {
+    const { data, error } = await supabase
+      .from("gpu_price_alerts")
+      .insert([
+        {
+          user_id: userId,
+          gpu_model: alertData.gpuModel,
+          target_price: alertData.targetPrice,
+          currency: alertData.currency || "€",
+          alert_type: alertData.alertType || "below", // 'below', 'above', 'exact'
+          is_active: true,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getUserPriceAlerts(userId) {
+    const { data, error } = await supabase
+      .from("gpu_price_alerts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async checkPriceAlerts() {
+    // Get all active alerts
+    const { data: alerts, error } = await supabase
+      .from("gpu_price_alerts")
+      .select(
+        `
+        *,
+        users!inner(username)
+      `,
+      )
+      .eq("is_active", true);
+
+    if (error) throw error;
+    if (!alerts || alerts.length === 0) return [];
+
+    const triggeredAlerts = [];
+
+    // Check each alert against recent listings
+    for (const alert of alerts) {
+      const { data: recentListings } = await supabase
+        .from("gpu_listings")
+        .select("*")
+        .ilike("model", `%${alert.gpu_model}%`)
+        .eq("currency", alert.currency)
+        .gte(
+          "scraped_at",
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        ) // Last 24 hours
+        .order("scraped_at", { ascending: false });
+
+      if (recentListings && recentListings.length > 0) {
+        for (const listing of recentListings) {
+          let triggered = false;
+
+          switch (alert.alert_type) {
+            case "below":
+              triggered = listing.price <= alert.target_price;
+              break;
+            case "above":
+              triggered = listing.price >= alert.target_price;
+              break;
+            case "exact":
+              triggered =
+                Math.abs(listing.price - alert.target_price) <=
+                alert.target_price * 0.05; // 5% tolerance
+              break;
+          }
+
+          if (triggered) {
+            triggeredAlerts.push({
+              alert,
+              listing,
+              username: alert.users.username,
+            });
+
+            // Log the triggered alert
+            await supabase.from("alert_notifications").insert([
+              {
+                alert_id: alert.id,
+                listing_id: listing.id,
+                triggered_at: new Date().toISOString(),
+                sent: false,
+              },
+            ]);
+
+            break; // One trigger per alert check
+          }
+        }
+      }
+    }
+
+    return triggeredAlerts;
+  },
+
+  // Utility function to extract brand from model name
+  extractBrand(model) {
+    if (!model) return "Unknown";
+
+    const modelUpper = model.toUpperCase();
+
+    if (
+      modelUpper.includes("RTX") ||
+      modelUpper.includes("GTX") ||
+      modelUpper.includes("GEFORCE")
+    ) {
+      return "NVIDIA";
+    }
+    if (modelUpper.includes("RX") || modelUpper.includes("RADEON")) {
+      return "AMD";
+    }
+    if (modelUpper.includes("ARC")) {
+      return "Intel";
+    }
+
+    return "Unknown";
+  },
 };
 
-module.exports = { supabase, db, encryption, gpuDb };
+module.exports = { supabase, db, encryption };
