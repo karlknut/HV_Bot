@@ -70,23 +70,23 @@
 
   // Track processed message IDs to prevent duplicates
   const processedMessages = new Set();
-  
+
   function handleWebSocketMessage(message) {
     // Create a unique ID for this message
     const messageId = `${message.type}_${message.timestamp || Date.now()}_${JSON.stringify(message.data).substring(0, 50)}`;
-    
+
     // Skip if we've already processed this message
     if (processedMessages.has(messageId)) {
       return;
     }
-    
+
     // Add to processed set and clean up old messages
     processedMessages.add(messageId);
     if (processedMessages.size > 100) {
       const oldestMessages = Array.from(processedMessages).slice(0, 50);
-      oldestMessages.forEach(id => processedMessages.delete(id));
+      oldestMessages.forEach((id) => processedMessages.delete(id));
     }
-    
+
     console.log("WebSocket message:", message);
 
     switch (message.type) {
@@ -180,7 +180,7 @@
     try {
       const response = await API.get("/api/stats");
       console.log("Stats API response:", response);
-      
+
       if (response && response.success) {
         // Handle nested data structure
         let statsData = response.data?.data || response.data;
@@ -197,7 +197,7 @@
     try {
       const result = await API.get("/api/forum-credentials");
       console.log("Credentials API response:", result);
-      
+
       if (result && result.success) {
         // Handle nested data structure
         let credentialsData = result.data?.data || result.data;
@@ -252,11 +252,13 @@
 
   function updateStatsDisplay(stats) {
     console.log("Updating stats display with:", stats);
-    
+
     // Update individual stat values
     document.getElementById("totalRuns").textContent = stats.totalRuns || 0;
-    document.getElementById("postsUpdated").textContent = stats.totalPostsUpdated || 0;
-    document.getElementById("commentsAdded").textContent = stats.totalCommentsAdded || 0;
+    document.getElementById("postsUpdated").textContent =
+      stats.totalPostsUpdated || 0;
+    document.getElementById("commentsAdded").textContent =
+      stats.totalCommentsAdded || 0;
 
     const lastRun = stats.lastRunDate
       ? formatTimeAgo(stats.lastRunDate)
@@ -302,33 +304,49 @@
       // Make the row clickable
       row.style.cursor = "pointer";
       row.style.transition = "background 0.3s";
-      
+
       row.innerHTML = `
         <td>${date}</td>
         <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span></td>
         <td>${run.postsUpdated || 0}</td>
         <td>${run.commentsAdded || 0}</td>
-        <td>${run.duration || '-'}</td>
+        <td>${run.duration || "-"}</td>
       `;
 
       // Add click handler to show run details
       row.addEventListener("click", () => showRunDetails(run));
-      
+
       // Add hover effect
       row.addEventListener("mouseenter", () => {
         row.style.background = "rgba(255, 255, 255, 0.05)";
       });
-      
+
       row.addEventListener("mouseleave", () => {
         row.style.background = "";
       });
     });
   }
 
+  function formatDuration(seconds) {
+    if (!seconds) return "-";
+
+    if (seconds < 60) {
+      return `${seconds}s`;
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${minutes}m ${secs}s`;
+    } else {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${minutes}m`;
+    }
+  }
+
   function showRunDetails(run) {
     // Use actual thread titles from the run data
     const threadTitles = run.threadTitles || [];
-    
+
     const modalContent = `
       <div style="text-align: left;">
         <div style="margin-bottom: 1rem;">
@@ -347,50 +365,70 @@
           <strong style="color: #3b82f6;">Comments Added:</strong> 
           <span style="color: #ccc;">${run.commentsAdded || 0}</span>
         </div>
-        ${run.error ? `
+        ${
+          run.error
+            ? `
           <div style="margin-bottom: 1rem;">
             <strong style="color: #ef4444;">Error:</strong> 
             <span style="color: #ccc;">${run.error}</span>
           </div>
-        ` : ''}
-        ${threadTitles.length > 0 ? `
+        `
+            : ""
+        }
+        ${
+          threadTitles.length > 0
+            ? `
           <div style="margin-top: 1.5rem;">
             <strong style="color: #3b82f6; display: block; margin-bottom: 0.75rem;">
               Forum Threads Processed:
             </strong>
             <div style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); 
                         border-radius: 8px; padding: 0.75rem;">
-              ${threadTitles.map((title, i) => `
+              ${threadTitles
+                .map(
+                  (title, i) => `
                 <div style="padding: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); 
                             color: #ccc;">
                   <span style="color: #666;">${i + 1}.</span> ${title}
                 </div>
-              `).join('')}
+              `,
+                )
+                .join("")}
             </div>
           </div>
-        ` : threadTitles.length === 0 && run.status === 'completed' ? `
+        `
+            : threadTitles.length === 0 && run.status === "completed"
+              ? `
           <div style="margin-top: 1.5rem; color: #666; font-style: italic;">
             No thread titles recorded for this run.
           </div>
-        ` : ''}
+        `
+              : ""
+        }
       </div>
     `;
 
     Modal.show({
-      type: 'info',
-      title: 'Bot Run Details',
-      message: '', // Will be replaced by custom content
-      confirmText: 'Close',
-      confirmClass: 'modal-btn-primary',
-      onConfirm: () => {}
+      type: "info",
+      title: "Bot Run Details",
+      message: "", // Will be replaced by custom content
+      confirmText: "Close",
+      confirmClass: "modal-btn-primary",
+      onConfirm: () => {},
     });
 
     // Replace the modal body with custom content
     setTimeout(() => {
-      document.getElementById('modalBody').innerHTML = modalContent;
+      document.getElementById("modalBody").innerHTML = modalContent;
       // Hide the cancel button for this info modal
-      document.getElementById('modalCancel').style.display = 'none';
+      document.getElementById("modalCancel").style.display = "none";
     }, 10);
+  }
+
+  function generateMockThreadTitles(run) {
+    // This function is no longer needed since we use actual titles
+    // Keeping it for backwards compatibility with old runs that don't have titles stored
+    return [];
   }
 
   function getStatusClass(status) {
@@ -556,21 +594,22 @@
   window.refreshStats = async function () {
     // Show refreshing message first
     Toast.info("Refreshing", "Updating statistics...", 1500);
-    
+
     // Wait a bit before actually refreshing
     setTimeout(async () => {
       await refreshStats();
-      
+
       // Show updated indicator after a delay
       setTimeout(() => {
-        const indicator = document.createElement('div');
-        indicator.className = 'refresh-indicator show';
-        indicator.textContent = '✓ Updated';
-        indicator.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); z-index: 1000; transition: opacity 0.3s ease;';
+        const indicator = document.createElement("div");
+        indicator.className = "refresh-indicator show";
+        indicator.textContent = "✓ Updated";
+        indicator.style.cssText =
+          "position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); z-index: 1000; transition: opacity 0.3s ease;";
         document.body.appendChild(indicator);
-        
+
         setTimeout(() => {
-          indicator.style.opacity = '0';
+          indicator.style.opacity = "0";
           setTimeout(() => {
             if (indicator.parentNode) {
               indicator.parentNode.removeChild(indicator);

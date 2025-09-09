@@ -284,12 +284,10 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
       botState.isRunning = false;
       botStates.set(userId, botState);
     }
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to start bot: " + error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to start bot: " + error.message,
+    });
   }
 });
 
@@ -321,12 +319,10 @@ app.post("/api/stop-bot", authenticateToken, async (req, res) => {
 
     res.json({ success: true, message: "Bot stopped successfully" });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to stop bot: " + error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to stop bot: " + error.message,
+    });
   }
 });
 

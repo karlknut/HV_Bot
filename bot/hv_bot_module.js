@@ -144,8 +144,7 @@ async function runForumBot(username, password, updateCallback = console.log) {
                 lastPostText: lastPostText,
               });
               console.log(`Edit match found: "${threadTitle}"`);
-            }
-            else if (
+            } else if (
               authorText === username &&
               lastPostText !== username &&
               lastPostText !== ""
@@ -173,10 +172,10 @@ async function runForumBot(username, password, updateCallback = console.log) {
 
     if (threadsToEdit.length === 0 && threadsToComment.length === 0) {
       updateCallback("No threads found to process");
-      return { 
-        postsUpdated: 0, 
+      return {
+        postsUpdated: 0,
         commentsAdded: 0,
-        processedThreads: []
+        processedThreads: [],
       };
     }
 
@@ -315,7 +314,7 @@ async function runForumBot(username, password, updateCallback = console.log) {
         postsUpdated++;
         processedThreads.push({
           title: thread.title,
-          action: "updated"
+          action: "updated",
         });
       } catch (error) {
         updateCallback(`Error processing "${thread.title}": ${error.message}`);
@@ -427,7 +426,7 @@ async function runForumBot(username, password, updateCallback = console.log) {
         commentsAdded++;
         processedThreads.push({
           title: thread.title,
-          action: "commented"
+          action: "commented",
         });
       } catch (error) {
         updateCallback(
@@ -437,10 +436,12 @@ async function runForumBot(username, password, updateCallback = console.log) {
     }
 
     updateCallback("All accessible threads have been processed!");
-    return { 
-      postsUpdated, 
+    const threadTitles = processedThreads.map((thread) => thread.title);
+    return {
+      postsUpdated,
       commentsAdded,
-      processedThreads
+      processedThreads,
+      threadTitles,
     };
   } catch (error) {
     updateCallback("Bot error: " + error.message);

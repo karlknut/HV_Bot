@@ -1,14 +1,7 @@
-// server/server.js - Complete file with Supabase integration
-
 // Load environment variables FIRST
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-
-// Verify environment variables are loaded
-console.log('Environment check:');
-console.log('- SUPABASE_URL:', process.env.SUPABASE_URL ? 'Set ✓' : 'Missing ✗');
-console.log('- SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? 'Set ✓' : 'Missing ✗');
-console.log('- ENCRYPTION_KEY:', process.env.ENCRYPTION_KEY ? 'Set ✓' : 'Missing ✗');
-console.log('- JWT_SECRET:', process.env.JWT_SECRET ? 'Set ✓' : 'Missing ✗');
+require("dotenv").config({
+  path: require("path").join(__dirname, "..", ".env"),
+});
 
 const express = require("express");
 const WebSocket = require("ws");
@@ -28,7 +21,8 @@ const wss = new WebSocket.Server({ server });
 
 // Configuration
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString("hex");
+const JWT_SECRET =
+  process.env.JWT_SECRET || crypto.randomBytes(64).toString("hex");
 
 // Store active connections
 let wsConnections = new Map();
@@ -37,7 +31,10 @@ let wsConnections = new Map();
 app.use(express.json());
 app.use("/css", express.static(path.join(__dirname, "..", "public", "css")));
 app.use("/js", express.static(path.join(__dirname, "..", "public", "js")));
-app.use("/pages", express.static(path.join(__dirname, "..", "public", "pages")));
+app.use(
+  "/pages",
+  express.static(path.join(__dirname, "..", "public", "pages")),
+);
 
 // Authentication middleware
 function authenticateToken(req, res, next) {
@@ -80,9 +77,9 @@ app.post("/api/register", async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Username and password required" 
+      return res.status(400).json({
+        success: false,
+        error: "Username and password required",
       });
     }
 
@@ -96,9 +93,9 @@ app.post("/api/register", async (req, res) => {
     // Check if user exists
     const existingUser = await db.getUserByUsername(username);
     if (existingUser) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Username already exists" 
+      return res.status(400).json({
+        success: false,
+        error: "Username already exists",
       });
     }
 
@@ -106,15 +103,15 @@ app.post("/api/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await db.createUser(username, hashedPassword);
 
-    res.json({ 
-      success: true, 
-      message: "User registered successfully" 
+    res.json({
+      success: true,
+      message: "User registered successfully",
     });
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Registration failed: " + error.message 
+    res.status(500).json({
+      success: false,
+      error: "Registration failed: " + error.message,
     });
   }
 });
@@ -126,16 +123,16 @@ app.post("/api/login", async (req, res) => {
     const user = await db.getUserByUsername(username);
 
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.status(401).json({ 
-        success: false, 
-        error: "Invalid credentials" 
+      return res.status(401).json({
+        success: false,
+        error: "Invalid credentials",
       });
     }
 
     const token = jwt.sign(
       { userId: user.id, username: user.username },
       JWT_SECRET,
-      { expiresIn: "24h" }
+      { expiresIn: "24h" },
     );
 
     res.json({
@@ -145,9 +142,9 @@ app.post("/api/login", async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Login failed: " + error.message 
+    res.status(500).json({
+      success: false,
+      error: "Login failed: " + error.message,
     });
   }
 });
@@ -157,7 +154,7 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
   try {
     const stats = await db.getUserStats(req.user.userId);
     const runHistory = await db.getRunHistory(req.user.userId, 50);
-    
+
     // Get bot status from bot manager
     const botManager = require("./bot-manager");
     const botStatus = botManager.getStatus(req.user.userId);
@@ -169,14 +166,14 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
       totalCommentsAdded: stats.total_comments_added,
       lastRunDate: stats.last_run_date,
       lastRunStatus: stats.last_run_status,
-      runHistory: runHistory.map(run => ({
+      runHistory: runHistory.map((run) => ({
         date: run.run_date,
         status: run.status,
         postsUpdated: run.posts_updated,
         commentsAdded: run.comments_added,
         threadTitles: run.thread_titles || [],
         error: run.error_message,
-        duration: run.duration_seconds
+        duration: run.duration_seconds,
       })),
       isRunning: botStatus.isRunning,
       currentStatus: botStatus.status,
@@ -185,9 +182,9 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
     res.json({ success: true, data: responseData });
   } catch (error) {
     console.error("Stats error:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Failed to load stats" 
+    res.status(500).json({
+      success: false,
+      error: "Failed to load stats",
     });
   }
 });
@@ -215,9 +212,9 @@ app.get("/api/forum-credentials", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Credentials fetch error:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Failed to fetch credentials status" 
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch credentials status",
     });
   }
 });
@@ -234,9 +231,9 @@ app.post("/api/forum-credentials", authenticateToken, async (req, res) => {
     }
 
     await db.saveForumCredentials(
-      req.user.userId, 
-      forumUsername, 
-      forumPassword
+      req.user.userId,
+      forumUsername,
+      forumPassword,
     );
 
     res.json({
@@ -259,9 +256,9 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
     const botManager = require("./bot-manager");
 
     if (botManager.isRunning(userId)) {
-      return res.json({ 
-        success: false, 
-        message: "Bot is already running" 
+      return res.json({
+        success: false,
+        message: "Bot is already running",
       });
     }
 
@@ -284,31 +281,40 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
       }
     });
 
+    // Store start time for duration calculation
+    const botStartTime = Date.now();
+
     botManager.once("botCompleted", async (data) => {
       if (data.userId !== userId) return;
-      
+
       try {
+        // Calculate duration in seconds
+        const duration = Math.round((Date.now() - botStartTime) / 1000);
+
         // Update stats in Supabase
         const stats = await db.getUserStats(userId);
-        
+
         // Calculate new values
         const newStats = {
           total_runs: (stats.total_runs || 0) + 1,
-          total_posts_updated: (stats.total_posts_updated || 0) + data.stats.postsUpdated,
-          total_comments_added: (stats.total_comments_added || 0) + data.stats.commentsAdded,
+          total_posts_updated:
+            (stats.total_posts_updated || 0) + data.stats.postsUpdated,
+          total_comments_added:
+            (stats.total_comments_added || 0) + data.stats.commentsAdded,
           last_run_date: new Date().toISOString(),
-          last_run_status: "completed"
+          last_run_status: "completed",
         };
-        
+
         await db.updateUserStats(userId, newStats);
 
-        // Add to run history with thread titles
+        // Add to run history with thread titles and duration
         await db.addRunHistory(userId, {
           date: new Date().toISOString(),
           status: "completed",
           postsUpdated: data.stats.postsUpdated,
           commentsAdded: data.stats.commentsAdded,
-          threadTitles: data.stats.threadTitles || []
+          threadTitles: data.stats.threadTitles || [],
+          duration: duration, // Add duration here
         });
 
         // Clean up old runs
@@ -316,7 +322,6 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
           await db.cleanupOldRuns(userId, 50);
         } catch (cleanupError) {
           console.error("Error cleaning up old runs:", cleanupError);
-          // Don't fail the whole operation if cleanup fails
         }
 
         broadcastToUser(userId, {
@@ -327,10 +332,14 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
             commentsAdded: data.stats.commentsAdded,
           },
         });
+
+        console.log(
+          `Bot completed for user ${userId}. Duration: ${duration}s, Thread titles:`,
+          data.stats.threadTitles,
+        );
       } catch (error) {
         console.error("Error handling bot completion:", error);
-        
-        // Still notify the user even if database update failed
+
         broadcastToUser(userId, {
           type: "botCompleted",
           data: {
@@ -344,12 +353,12 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
 
     botManager.once("botError", async (data) => {
       if (data.userId !== userId) return;
-      
+
       try {
         // Update stats with error
         const stats = await db.getUserStats(userId);
         await db.updateUserStats(userId, {
-          last_run_status: "error"
+          last_run_status: "error",
         });
 
         // Add error to run history
@@ -358,7 +367,7 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
           status: "error",
           postsUpdated: 0,
           commentsAdded: 0,
-          error: data.error
+          error: data.error,
         });
 
         broadcastToUser(userId, {
@@ -370,7 +379,7 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
         });
       } catch (error) {
         console.error("Error handling bot error:", error);
-        
+
         // Still notify the user even if database update failed
         broadcastToUser(userId, {
           type: "botError",
@@ -396,7 +405,7 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
     const success = await botManager.startBot(
       userId,
       credentials.username,
-      credentials.password
+      credentials.password,
     );
 
     if (success) {
@@ -405,21 +414,21 @@ app.post("/api/start-bot", authenticateToken, async (req, res) => {
       try {
         await db.updateUserStats(userId, {
           last_run_date: new Date().toISOString(),
-          last_run_status: "running"
+          last_run_status: "running",
         });
       } catch (statsError) {
         console.error("Error updating initial stats:", statsError);
         // Don't fail the bot start if stats update fails
       }
 
-      res.json({ 
-        success: true, 
-        message: "Bot started successfully" 
+      res.json({
+        success: true,
+        message: "Bot started successfully",
       });
     } else {
-      res.json({ 
-        success: false, 
-        message: "Failed to start bot" 
+      res.json({
+        success: false,
+        message: "Failed to start bot",
       });
     }
   } catch (error) {
@@ -438,9 +447,9 @@ app.post("/api/stop-bot", authenticateToken, async (req, res) => {
     const botManager = require("./bot-manager");
 
     if (!botManager.isRunning(userId)) {
-      return res.json({ 
-        success: false, 
-        message: "Bot is not running" 
+      return res.json({
+        success: false,
+        message: "Bot is not running",
       });
     }
 
@@ -449,17 +458,17 @@ app.post("/api/stop-bot", authenticateToken, async (req, res) => {
     if (stopped) {
       // Update stats
       await db.updateUserStats(userId, {
-        last_run_status: "stopped"
+        last_run_status: "stopped",
       });
 
-      res.json({ 
-        success: true, 
-        message: "Bot stopped successfully" 
+      res.json({
+        success: true,
+        message: "Bot stopped successfully",
       });
     } else {
-      res.json({ 
-        success: false, 
-        message: "Failed to stop bot" 
+      res.json({
+        success: false,
+        message: "Failed to stop bot",
       });
     }
   } catch (error) {
@@ -480,7 +489,9 @@ wss.on("connection", (ws, req) => {
       if (data.type === "auth" && data.token) {
         jwt.verify(data.token, JWT_SECRET, (err, user) => {
           if (err) {
-            ws.send(JSON.stringify({ type: "error", message: "Invalid token" }));
+            ws.send(
+              JSON.stringify({ type: "error", message: "Invalid token" }),
+            );
             ws.close();
             return;
           }
@@ -496,11 +507,13 @@ wss.on("connection", (ws, req) => {
           // Send current bot status
           const botManager = require("./bot-manager");
           const botStatus = botManager.getStatus(user.userId);
-          
-          ws.send(JSON.stringify({
-            type: "statusUpdate",
-            data: { isRunning: botStatus.isRunning },
-          }));
+
+          ws.send(
+            JSON.stringify({
+              type: "statusUpdate",
+              data: { isRunning: botStatus.isRunning },
+            }),
+          );
         });
       }
     } catch (error) {
@@ -536,7 +549,9 @@ function broadcastToUser(userId, message) {
 
 // Start server
 server.listen(PORT, () => {
-  console.log(`HV Forum Bot Server (Supabase) running on http://localhost:${PORT}`);
+  console.log(
+    `HV Forum Bot Server (Supabase) running on http://localhost:${PORT}`,
+  );
   console.log("Environment: " + (process.env.NODE_ENV || "development"));
 });
 

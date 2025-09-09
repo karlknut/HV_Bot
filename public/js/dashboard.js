@@ -133,7 +133,8 @@
     if (running) {
       if (startButton) {
         startButton.disabled = true;
-        startButton.innerHTML = '<span class="btn-icon">⏸️</span><span class="btn-text">Bot Running...</span>';
+        startButton.innerHTML =
+          '<span class="btn-icon">⏸️</span><span class="btn-text">Bot Running...</span>';
       }
       if (stopButton) {
         stopButton.disabled = false;
@@ -144,7 +145,8 @@
     } else {
       if (startButton) {
         startButton.disabled = !hasForumCredentials;
-        startButton.innerHTML = '<span class="btn-icon">🚀</span><span class="btn-text">Start Bot</span>';
+        startButton.innerHTML =
+          '<span class="btn-icon">🚀</span><span class="btn-text">Start Bot</span>';
       }
       if (stopButton) {
         stopButton.disabled = true;
@@ -159,7 +161,7 @@
     try {
       const result = await API.get("/api/stats");
       console.log("Stats API response:", result);
-      
+
       if (result && result.success) {
         // Handle nested data structure
         const statsData = result.data?.data || result.data;
@@ -177,7 +179,7 @@
       console.log("Loading credentials status...");
       const result = await API.get("/api/forum-credentials");
       console.log("Credentials API response:", result);
-      
+
       if (result && result.success && result.data) {
         // Handle nested structure properly
         const credentialsData = result.data.data || result.data;
@@ -193,7 +195,7 @@
 
   function updateCredentialsDisplay(data) {
     console.log("updateCredentialsDisplay called with:", data);
-    
+
     hasForumCredentials = data.hasCredentials === true;
     console.log("hasForumCredentials set to:", hasForumCredentials);
 
@@ -203,7 +205,7 @@
 
     if (hasForumCredentials) {
       console.log("User HAS forum credentials");
-      
+
       // Show logged in state
       if (credentialsCard) {
         credentialsCard.style.display = "block";
@@ -227,7 +229,9 @@
       }
 
       if (data.lastUpdated) {
-        const lastUpdatedElement = document.getElementById("credentialsLastUpdated");
+        const lastUpdatedElement = document.getElementById(
+          "credentialsLastUpdated",
+        );
         if (lastUpdatedElement) {
           lastUpdatedElement.textContent = formatTimeAgo(data.lastUpdated);
         }
@@ -239,12 +243,12 @@
       }
     } else {
       console.log("User DOES NOT have forum credentials");
-      
+
       // Show credentials form with setup prompt
       if (credentialsCard) {
         credentialsCard.style.display = "none";
       }
-      
+
       if (credentialsForm) {
         credentialsForm.innerHTML = `
           <h3>Forum Credentials Required</h3>
@@ -275,8 +279,10 @@
     const lastRunEl = document.getElementById("lastRun");
 
     if (totalRunsEl) totalRunsEl.textContent = formattedStats.totalRuns;
-    if (totalPostsEl) totalPostsEl.textContent = formattedStats.totalPostsUpdated;
-    if (totalCommentsEl) totalCommentsEl.textContent = formattedStats.totalCommentsAdded;
+    if (totalPostsEl)
+      totalPostsEl.textContent = formattedStats.totalPostsUpdated;
+    if (totalCommentsEl)
+      totalCommentsEl.textContent = formattedStats.totalCommentsAdded;
     if (lastRunEl) lastRunEl.textContent = formattedStats.lastRun;
 
     // Update bot status
@@ -319,11 +325,16 @@
       cancelText: "Cancel",
       confirmClass: "modal-btn-primary",
       onConfirm: async () => {
-        const username = document.getElementById("modalForumUsername").value.trim();
+        const username = document
+          .getElementById("modalForumUsername")
+          .value.trim();
         const password = document.getElementById("modalForumPassword").value;
 
         if (!username || !password) {
-          Toast.warning("Missing Information", "Please enter both username and password");
+          Toast.warning(
+            "Missing Information",
+            "Please enter both username and password",
+          );
           return;
         }
 
@@ -347,12 +358,18 @@
       });
 
       if (result && result.success) {
-        Toast.success("Credentials Saved", "Your forum credentials have been updated");
-        
+        Toast.success(
+          "Credentials Saved",
+          "Your forum credentials have been updated",
+        );
+
         // Reload credentials status to update display
         await loadCredentialsStatus();
       } else {
-        Toast.error("Save Failed", result.error || "Failed to save credentials");
+        Toast.error(
+          "Save Failed",
+          result.error || "Failed to save credentials",
+        );
       }
     } catch (error) {
       console.error("Save credentials error:", error);
@@ -367,7 +384,10 @@
     const password = document.getElementById("forumPassword").value;
 
     if (!username || !password) {
-      Toast.warning("Missing Information", "Please enter both username and password");
+      Toast.warning(
+        "Missing Information",
+        "Please enter both username and password",
+      );
       return;
     }
 
@@ -376,12 +396,15 @@
 
   async function handleStartBot() {
     console.log("Start bot clicked. hasForumCredentials:", hasForumCredentials);
-    
+
     if (!hasForumCredentials) {
-      Toast.warning("Credentials Required", "Please set your forum credentials first");
+      Toast.warning(
+        "Credentials Required",
+        "Please set your forum credentials first",
+      );
       return;
     }
-    
+
     Modal.confirm(
       "Start Bot?",
       "The bot will begin updating your forum posts and adding comments. This may take a few minutes.",
@@ -394,10 +417,16 @@
 
           if (!result.success) {
             if (result.message && result.message.includes("credentials")) {
-              Toast.error("Credentials Required", "Please set your forum credentials first");
+              Toast.error(
+                "Credentials Required",
+                "Please set your forum credentials first",
+              );
               loadCredentialsStatus();
             } else {
-              Toast.error("Start Failed", result.message || result.error || "Failed to start bot");
+              Toast.error(
+                "Start Failed",
+                result.message || result.error || "Failed to start bot",
+              );
             }
           } else {
             Toast.success("Bot Starting", "Your bot is starting up...");
@@ -423,7 +452,10 @@
           const result = await API.post("/api/stop-bot", {});
 
           if (!result.success) {
-            Toast.error("Stop Failed", result.message || result.error || "Failed to stop bot");
+            Toast.error(
+              "Stop Failed",
+              result.message || result.error || "Failed to stop bot",
+            );
           }
         } catch (error) {
           Toast.error("Error", "Failed to stop bot");

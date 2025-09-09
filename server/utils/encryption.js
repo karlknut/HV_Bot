@@ -51,12 +51,13 @@ class Encryption {
         // This is for backwards compatibility with existing encrypted data
         try {
           // For old format, we need to use the raw key as a password
-          const keyString = process.env.ENCRYPTION_KEY || this.key.toString('hex');
+          const keyString =
+            process.env.ENCRYPTION_KEY || this.key.toString("hex");
           const decipher = crypto.createDecipher("aes-256-cbc", keyString);
-          
+
           let decrypted = decipher.update(encryptedText, "hex", "utf8");
           decrypted += decipher.final("utf8");
-          
+
           return decrypted;
         } catch (oldError) {
           // If old format also fails, throw error

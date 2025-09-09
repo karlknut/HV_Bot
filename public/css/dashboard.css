@@ -1,337 +1,345 @@
 /* dashboard.css - Dashboard specific styles */
 
 .dashboard-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-    position: relative;
-    z-index: 2;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  position: relative;
+  z-index: 2;
 }
 
 /* Welcome Section */
 .welcome-section {
-    margin-bottom: 2rem;
-    text-align: center;
-    animation: fadeIn 0.8s ease-out;
+  margin-bottom: 2rem;
+  text-align: center;
+  animation: fadeIn 0.8s ease-out;
 }
 
 .welcome-title {
-    font-size: 2rem;
-    color: white;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
+  font-size: 2rem;
+  color: white;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
 }
 
 .welcome-subtitle {
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.1rem;
 }
 
 /* Credentials Card */
 .credentials-card {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    border-radius: 15px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-    position: relative;
-    overflow: hidden;
-    display: none;
-    animation: slideInFromLeft 0.8s ease-out;
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.1) 0%,
+    rgba(37, 99, 235, 0.05) 100%
+  );
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 15px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+  display: none;
+  animation: slideInFromLeft 0.8s ease-out;
 }
 
 .credentials-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
-    animation: shimmer 3s infinite;
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+  animation: shimmer 3s infinite;
 }
 
 .credentials-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
 .credentials-status {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .status-dot {
-    width: 8px;
-    height: 8px;
-    background: #10b981;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
 }
 
 .status-text {
-    color: #10b981;
-    font-weight: 600;
+  color: #10b981;
+  font-weight: 600;
 }
 
 .credentials-info {
-    display: flex;
-    align-items: center;
-    gap: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
 }
 
 .credential-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .credential-label {
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .credential-value {
-    font-size: 1.1rem;
-    color: white;
-    font-weight: 600;
+  font-size: 1.1rem;
+  color: white;
+  font-weight: 600;
 }
 
 .edit-credentials-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.7);
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
 }
 
 .edit-credentials-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transform: translateY(-1px);
 }
 
 /* Credentials Form Section */
 .credentials-form-section {
-    background: rgba(42, 42, 42, 0.9);
-    border: 2px solid #444;
-    border-radius: 15px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-    backdrop-filter: blur(10px);
-    display: none;
-    animation: slideInFromLeft 0.8s ease-out;
+  background: rgba(42, 42, 42, 0.9);
+  border: 2px solid #444;
+  border-radius: 15px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  backdrop-filter: blur(10px);
+  display: none;
+  animation: slideInFromLeft 0.8s ease-out;
 }
 
 .credentials-form-section h3 {
-    color: #3b82f6;
-    margin-bottom: 1rem;
-    font-size: 1.3rem;
+  color: #3b82f6;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
 }
 
 .form-description {
-    color: rgba(255, 255, 255, 0.6);
-    margin-bottom: 1.5rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 1.5rem;
 }
 
 .credentials-form-inputs {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    align-items: flex-end;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
 }
 
 .credentials-form-inputs .form-group {
-    flex: 1;
-    min-width: 200px;
+  flex: 1;
+  min-width: 200px;
 }
 
 /* Action Buttons */
 .action-buttons {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
-    animation: slideInFromRight 0.8s ease-out;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+  animation: slideInFromRight 0.8s ease-out;
 }
 
 .action-btn {
-    padding: 1.2rem;
-    border-radius: 12px;
-    border: none;
-    font-weight: 600;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    text-decoration: none;
-    color: white;
+  padding: 1.2rem;
+  border-radius: 12px;
+  border: none;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: white;
 }
 
 .action-btn .btn-icon {
-    font-size: 1.2rem;
+  font-size: 1.2rem;
 }
 
 .action-btn.primary {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
 }
 
 .action-btn.primary:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
 }
 
 .action-btn.secondary {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
 }
 
 .action-btn.secondary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
 }
 
 .action-btn.danger {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
 }
 
 .action-btn.danger:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
 }
 
 .action-btn:disabled {
-    background: linear-gradient(135deg, #64748b 0%, #475569 100%);
-    cursor: not-allowed;
-    transform: none !important;
-    opacity: 0.7;
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+  cursor: not-allowed;
+  transform: none !important;
+  opacity: 0.7;
 }
 
 /* Bot Running Indicator */
 .bot-running-indicator {
-    position: fixed;
-    top: 80px;
-    right: 20px;
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    border-radius: 12px;
-    padding: 0.75rem 1.25rem;
-    display: none;
-    align-items: center;
-    gap: 0.75rem;
-    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
-    z-index: 50;
-    animation: slideInFromRight 0.4s ease;
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(16, 185, 129, 0.1) 0%,
+    rgba(5, 150, 105, 0.05) 100%
+  );
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  padding: 0.75rem 1.25rem;
+  display: none;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+  z-index: 50;
+  animation: slideInFromRight 0.4s ease;
 }
 
 .bot-running-indicator .spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid rgba(16, 185, 129, 0.3);
-    border-top-color: #10b981;
-    border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(16, 185, 129, 0.3);
+  border-top-color: #10b981;
+  border-radius: 50%;
 }
 
 .bot-status-text {
-    color: #10b981;
-    font-weight: 600;
+  color: #10b981;
+  font-weight: 600;
 }
 
 /* Stats Grid */
 .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
-    margin-top: 2rem;
-    animation: fadeIn 0.8s ease-out 0.3s backwards;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+  animation: fadeIn 0.8s ease-out 0.3s backwards;
 }
 
 .stat-card {
-    background: rgba(30, 30, 30, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1.5rem;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
+  background: rgba(30, 30, 30, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
 .stat-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.2);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .stat-label {
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
 }
 
 .stat-value {
-    color: white;
-    font-size: 2rem;
-    font-weight: bold;
+  color: white;
+  font-size: 2rem;
+  font-weight: bold;
 }
 
 .stat-value-small {
-    font-size: 1.2rem;
+  font-size: 1.2rem;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .dashboard-container {
-        padding: 1rem;
-    }
+  .dashboard-container {
+    padding: 1rem;
+  }
 
-    .welcome-title {
-        font-size: 1.5rem;
-    }
+  .welcome-title {
+    font-size: 1.5rem;
+  }
 
-    .welcome-subtitle {
-        font-size: 1rem;
-    }
+  .welcome-subtitle {
+    font-size: 1rem;
+  }
 
-    .credentials-header {
-        flex-direction: column;
-        gap: 1rem;
-        align-items: flex-start;
-    }
+  .credentials-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
 
-    .credentials-info {
-        flex-direction: column;
-        gap: 1rem;
-    }
+  .credentials-info {
+    flex-direction: column;
+    gap: 1rem;
+  }
 
-    .credentials-form-inputs {
-        flex-direction: column;
-    }
+  .credentials-form-inputs {
+    flex-direction: column;
+  }
 
-    .credentials-form-inputs .form-group {
-        width: 100%;
-    }
+  .credentials-form-inputs .form-group {
+    width: 100%;
+  }
 
-    .action-buttons {
-        grid-template-columns: 1fr;
-    }
+  .action-buttons {
+    grid-template-columns: 1fr;
+  }
 
-    .stats-grid {
-        grid-template-columns: 1fr;
-    }
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 
-    .bot-running-indicator {
-        right: 10px;
-        left: 10px;
-        width: auto;
-    }
+  .bot-running-indicator {
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
 }

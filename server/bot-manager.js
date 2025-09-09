@@ -37,7 +37,7 @@ class BotManager extends EventEmitter {
       this.stats.set(userId, {
         postsUpdated: 0,
         commentsAdded: 0,
-        threadTitles: []
+        threadTitles: [],
       });
 
       // Emit bot started event
@@ -55,7 +55,7 @@ class BotManager extends EventEmitter {
       this.stats.set(userId, {
         postsUpdated: result.postsUpdated || 0,
         commentsAdded: result.commentsAdded || 0,
-        threadTitles: result.threadTitles || [] // Make sure threadTitles are included
+        threadTitles: result.threadTitles || [], // Make sure threadTitles are included
       });
 
       // Update bot state
@@ -71,8 +71,8 @@ class BotManager extends EventEmitter {
         stats: {
           postsUpdated: result.postsUpdated || 0,
           commentsAdded: result.commentsAdded || 0,
-          threadTitles: result.threadTitles || []
-        }
+          threadTitles: result.threadTitles || [],
+        },
       });
 
       return true;
