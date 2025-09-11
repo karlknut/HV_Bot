@@ -1,12 +1,11 @@
-// server/db/supabase.js - Fixed version with GPU functions merged into main db object
+// server/db/supabase.js - Fixed version
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
-const { addRunHistory, getRunHistory } = require("../server");
 
 // Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY,
+  process.env.SUPABASE_ANON_KEY
 );
 
 // Encryption class for credentials
@@ -48,6 +47,9 @@ const encryption = new CredentialEncryption(process.env.ENCRYPTION_KEY);
 
 // Main database functions
 const db = {
+  // Make supabase accessible for other modules
+  supabase: supabase,
+
   // User Management
   async createUser(username, passwordHash) {
     const { data, error } = await supabase
@@ -207,19 +209,20 @@ const db = {
 
   // Run History
   async addRunHistory(userId, runData) {
-    const botType =
-      runData.botType || (runData.gpusFound !== undefined ? "gpu" : "forum");
-
+    // Determine bot type
+    const botType = runData.botType || (runData.gpusFound !== undefined ? 'gpu' : 'forum');
+    
     const historyEntry = {
       user_id: userId,
       run_date: runData.date || new Date().toISOString(),
       status: runData.status,
       bot_type: botType,
       duration_seconds: runData.duration || null,
-      error_message: runData.error || null,
+      error_message: runData.error || null
     };
 
-    if (botType === "gpu") {
+    // Add type-specific fields
+    if (botType === 'gpu') {
       historyEntry.gpus_found = runData.gpusFound || 0;
       historyEntry.new_gpus = runData.newGPUs || 0;
       historyEntry.duplicates = runData.duplicates || 0;
@@ -229,6 +232,7 @@ const db = {
       historyEntry.comments_added = runData.commentsAdded || 0;
       historyEntry.thread_titles = runData.threadTitles || [];
     }
+
     const { data, error } = await supabase
       .from("run_history")
       .insert([historyEntry])
@@ -248,7 +252,9 @@ const db = {
       .limit(limit);
 
     if (error) throw error;
-    return (data || []).map((run) => ({
+    
+    // Format the data for frontend
+    return (data || []).map(run => ({
       date: run.run_date,
       status: run.status,
       botType: run.bot_type,
@@ -262,7 +268,7 @@ const db = {
       gpusFound: run.gpus_found,
       newGPUs: run.new_gpus,
       duplicates: run.duplicates,
-      pagesScanned: run.pages_scanned,
+      pagesScanned: run.pages_scanned
     }));
   },
 
@@ -290,7 +296,6 @@ const db = {
   // =================== GPU TRACKING FUNCTIONS ===================
 
   async saveGPUListing(listing) {
-    // Include location field
     const { data, error } = await supabase
       .from("gpu_listings")
       .insert([
@@ -302,10 +307,10 @@ const db = {
           title: listing.title,
           url: listing.url,
           author: listing.author,
-          location: listing.location, // Now included
+          location: listing.location, // Include location
           source: listing.source || "forum",
           scraped_at: listing.scraped_at || new Date().toISOString(),
-          user_id: listing.user_id,
+          user_id: listing.user_id, // Track which user scraped this
         },
       ])
       .select()
@@ -480,7 +485,7 @@ const db = {
     }
 
     console.log(
-      `Updated price history for ${Object.keys(modelStats).length} GPU models`,
+      `Updated price history for ${Object.keys(modelStats).length} GPU models`
     );
   },
 
@@ -526,7 +531,7 @@ const db = {
         `
         *,
         users!inner(username)
-      `,
+      `
       )
       .eq("is_active", true);
 
@@ -544,7 +549,7 @@ const db = {
         .eq("currency", alert.currency)
         .gte(
           "scraped_at",
-          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
         ) // Last 24 hours
         .order("scraped_at", { ascending: false });
 
@@ -616,11 +621,4 @@ const db = {
   },
 };
 
-module.exports = {
-  supabase,
-  db,
-  encryption,
-  addRunHistory,
-  getRunHistory,
-  migration,
-};
+module.exports = { supabase, db, encryption };
