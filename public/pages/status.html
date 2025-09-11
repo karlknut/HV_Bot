@@ -6,6 +6,108 @@
     <title>HV Forum Bot - Status</title>
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/status.css" />
+    <style>
+      /* Additional GPU Stats Styles */
+      .bot-type-indicator {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+      }
+
+      .bot-type-forum {
+        background: linear-gradient(
+          135deg,
+          rgba(59, 130, 246, 0.2) 0%,
+          rgba(37, 99, 235, 0.1) 100%
+        );
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        color: #3b82f6;
+      }
+
+      .bot-type-gpu {
+        background: linear-gradient(
+          135deg,
+          rgba(16, 185, 129, 0.2) 0%,
+          rgba(5, 150, 105, 0.1) 100%
+        );
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #10b981;
+      }
+
+      .gpu-stats-section {
+        background: linear-gradient(
+          135deg,
+          rgba(147, 51, 234, 0.1) 0%,
+          rgba(126, 34, 206, 0.05) 100%
+        );
+        border: 1px solid rgba(147, 51, 234, 0.2);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 2rem 0;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .gpu-stats-section::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #9333ea, transparent);
+        animation: shimmer 3s infinite;
+      }
+
+      .gpu-stats-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .gpu-stats-title {
+        color: #9333ea;
+        font-size: 1.3rem;
+        font-weight: 600;
+      }
+
+      .gpu-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+      }
+
+      .gpu-stat-item {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+      }
+
+      .gpu-stat-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #9333ea;
+        margin-bottom: 0.25rem;
+      }
+
+      .gpu-stat-label {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.85rem;
+      }
+
+      .history-bot-type {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+    </style>
   </head>
   <body>
     <canvas id="starfield"></canvas>
@@ -80,7 +182,7 @@
         </button>
       </div>
 
-      <!-- Stats Grid -->
+      <!-- Forum Bot Stats Grid -->
       <div class="stats-grid">
         <div class="stat-card">
           <h3>Bot Status</h3>
@@ -93,7 +195,7 @@
         <div class="stat-card">
           <h3>Total Runs</h3>
           <div class="stat-value" id="totalRuns">-</div>
-          <div class="stat-label">Since deployment</div>
+          <div class="stat-label">Forum bot runs</div>
         </div>
 
         <div class="stat-card">
@@ -121,6 +223,38 @@
         </div>
       </div>
 
+      <!-- GPU Bot Stats Section -->
+      <div class="gpu-stats-section" id="gpuStatsSection">
+        <div class="gpu-stats-header">
+          <h3 class="gpu-stats-title">🖥️ GPU Tracker Statistics</h3>
+          <a
+            href="/gpu-tracker"
+            class="btn btn-small"
+            style="text-decoration: none"
+          >
+            View GPU Tracker →
+          </a>
+        </div>
+        <div class="gpu-stats-grid">
+          <div class="gpu-stat-item">
+            <div class="gpu-stat-value" id="totalGPUScans">0</div>
+            <div class="gpu-stat-label">Total GPU Scans</div>
+          </div>
+          <div class="gpu-stat-item">
+            <div class="gpu-stat-value" id="totalGPUsFound">0</div>
+            <div class="gpu-stat-label">GPUs Found</div>
+          </div>
+          <div class="gpu-stat-item">
+            <div class="gpu-stat-value" id="uniqueGPUModels">0</div>
+            <div class="gpu-stat-label">Unique Models</div>
+          </div>
+          <div class="gpu-stat-item">
+            <div class="gpu-stat-value" id="lastGPUScan">Never</div>
+            <div class="gpu-stat-label">Last GPU Scan</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Live Logs Section -->
       <div class="log-section" id="logSection">
         <h2>Live Bot Output</h2>
@@ -136,15 +270,16 @@
           <thead>
             <tr>
               <th>Date</th>
+              <th>Bot Type</th>
               <th>Status</th>
-              <th>Posts Updated</th>
-              <th>Comments Added</th>
-              <th>Duration(seconds)</th>
+              <th>Posts/GPUs</th>
+              <th>Comments/New</th>
+              <th>Duration</th>
             </tr>
           </thead>
           <tbody id="historyTableBody">
             <tr>
-              <td colspan="5" class="table-empty">Loading history...</td>
+              <td colspan="6" class="table-empty">Loading history...</td>
             </tr>
           </tbody>
         </table>
@@ -189,6 +324,6 @@
     </div>
 
     <script src="/js/common.js"></script>
-    <script src="/js/status.js"></script>
+    <script src="/js/status-enhanced.js"></script>
   </body>
 </html>

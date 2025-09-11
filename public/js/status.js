@@ -1,4 +1,4 @@
-// Enhanced Status Page with Run History Details
+// public/js/status-enhanced.js - Status page with GPU bot tracking
 (function () {
   "use strict";
 
@@ -6,9 +6,15 @@
   let hasForumCredentials = false;
   let forumUsername = null;
   let runHistoryData = [];
+  let gpuStats = {
+    totalScans: 0,
+    totalGPUsFound: 0,
+    uniqueModels: 0,
+    lastScan: null,
+  };
 
   function init() {
-    console.log("Status page initializing...");
+    console.log("Enhanced status page initializing...");
 
     // Check authentication
     if (!Auth.isAuthenticated()) {
@@ -32,12 +38,16 @@
     // Load initial data
     refreshStats();
     loadCredentialsStatus();
+    loadGPUStats();
 
     // Setup event listeners
     setupEventListeners();
 
     // Auto-refresh stats every 30 seconds
-    setInterval(refreshStats, 30000);
+    setInterval(() => {
+      refreshStats();
+      loadGPUStats();
+    }, 30000);
   }
 
   function setupUserDisplay(user) {
@@ -93,17 +103,39 @@
       case "botStarted":
         updateBotStatus(true);
         addLogEntry(
-          "Bot started: " + new Date(message.data.timestamp).toLocaleString(),
+          "Forum Bot started: " +
+            new Date(message.data.timestamp).toLocaleString(),
           "info",
         );
         document.getElementById("emergencyStop").disabled = false;
-        Toast.info("Bot Started", "Your bot is now running");
+        Toast.info("Bot Started", "Forum bot is now running");
+        break;
+
+      case "gpuScanStarted":
+        addLogEntry("GPU Scan started: " + new Date().toLocaleString(), "info");
+        Toast.info("GPU Scan Started", "Scanning forum for GPU listings");
+        break;
+
+      case "gpuScanUpdate":
+        addLogEntry("GPU Scan: " + message.data, "output");
+        break;
+
+      case "gpuScanCompleted":
+        addLogEntry(
+          `GPU Scan completed: Found ${message.data.totalFound || 0} listings, saved ${message.data.saved || 0} new GPUs`,
+          "info",
+        );
+        loadGPUStats(); // Refresh GPU stats
+        Toast.success(
+          "GPU Scan Complete",
+          `Found ${message.data.totalFound || 0} listings, saved ${message.data.saved || 0} new`,
+        );
         break;
 
       case "botCompleted":
         updateBotStatus(false);
         addLogEntry(
-          `Bot completed: ${message.data.postsUpdated} posts updated, ${message.data.commentsAdded} comments added`,
+          `Forum Bot completed: ${message.data.postsUpdated} posts updated, ${message.data.commentsAdded} comments added`,
           "info",
         );
         document.getElementById("emergencyStop").disabled = true;
@@ -190,6 +222,42 @@
       }
     } catch (error) {
       console.error("Error loading stats:", error);
+    }
+  }
+
+  async function loadGPUStats() {
+    try {
+      // Get GPU listings count
+      const listingsResponse = await API.get("/api/gpu/listings?limit=1");
+
+      // Get GPU statistics
+      const statsResponse = await API.get("/api/gpu/stats");
+
+      if (listingsResponse && listingsResponse.success) {
+        const totalListings = listingsResponse.data?.total || 0;
+        document.getElementById("totalGPUsFound").textContent = totalListings;
+      }
+
+      if (statsResponse && statsResponse.success && statsResponse.data) {
+        const stats = statsResponse.data;
+        const uniqueModels = stats.length || 0;
+        document.getElementById("uniqueGPUModels").textContent = uniqueModels;
+
+        // Calculate total scans from history (estimated)
+        const scans = Math.ceil(totalListings / 20); // Estimate based on average finds per scan
+        document.getElementById("totalGPUScans").textContent = scans;
+
+        // Get latest date from listings
+        if (stats.length > 0) {
+          const latestDate = stats[0].latestDate;
+          if (latestDate) {
+            document.getElementById("lastGPUScan").textContent =
+              formatTimeAgo(latestDate);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading GPU stats:", error);
     }
   }
 
@@ -283,7 +351,7 @@
     // Store run history data
     runHistoryData = stats.runHistory || [];
 
-    // Update run history
+    // Update run history with bot type indicators
     updateRunHistory(stats.runHistory || []);
   }
 
@@ -293,7 +361,7 @@
 
     if (history.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="5" style="text-align: center; color: #666;">No runs yet</td></tr>';
+        '<tr><td colspan="6" style="text-align: center; color: #666;">No runs yet</td></tr>';
       return;
     }
 
@@ -301,20 +369,26 @@
       const row = tbody.insertRow();
       const date = new Date(run.date).toLocaleString();
 
+      // Determine bot type based on data
+      const isGPUScan = run.gpusFound !== undefined || run.botType === "gpu";
+      const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
+      const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
+
       // Make the row clickable
       row.style.cursor = "pointer";
       row.style.transition = "background 0.3s";
 
       row.innerHTML = `
         <td>${date}</td>
+        <td><span class="bot-type-indicator ${botTypeClass}">${botType}</span></td>
         <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span></td>
-        <td>${run.postsUpdated || 0}</td>
-        <td>${run.commentsAdded || 0}</td>
-        <td>${run.duration || "-"}</td>
+        <td>${isGPUScan ? run.gpusFound || 0 : run.postsUpdated || 0}</td>
+        <td>${isGPUScan ? run.newGPUs || 0 : run.commentsAdded || 0}</td>
+        <td>${formatDuration(run.duration) || "-"}</td>
       `;
 
       // Add click handler to show run details
-      row.addEventListener("click", () => showRunDetails(run));
+      row.addEventListener("click", () => showRunDetails(run, botType));
 
       // Add hover effect
       row.addEventListener("mouseenter", () => {
@@ -343,20 +417,35 @@
     }
   }
 
-  function showRunDetails(run) {
-    // Use actual thread titles from the run data
-    const threadTitles = run.threadTitles || [];
+  function showRunDetails(run, botType) {
+    const isGPUScan = botType === "GPU Scanner";
 
-    const modalContent = `
-      <div style="text-align: left;">
+    let detailsContent = "";
+
+    if (isGPUScan) {
+      // GPU scan details
+      detailsContent = `
         <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Date:</strong> 
-          <span style="color: #ccc;">${new Date(run.date).toLocaleString()}</span>
+          <strong style="color: #10b981;">GPUs Found:</strong> 
+          <span style="color: #ccc;">${run.gpusFound || 0}</span>
         </div>
         <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Status:</strong> 
-          <span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span>
+          <strong style="color: #10b981;">New GPUs Saved:</strong> 
+          <span style="color: #ccc;">${run.newGPUs || 0}</span>
         </div>
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #10b981;">Duplicates Skipped:</strong> 
+          <span style="color: #ccc;">${run.duplicates || 0}</span>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #10b981;">Pages Scanned:</strong> 
+          <span style="color: #ccc;">${run.pagesScanned || "Unknown"}</span>
+        </div>
+      `;
+    } else {
+      // Forum bot details (existing)
+      const threadTitles = run.threadTitles || [];
+      detailsContent = `
         <div style="margin-bottom: 1rem;">
           <strong style="color: #3b82f6;">Posts Updated:</strong> 
           <span style="color: #ccc;">${run.postsUpdated || 0}</span>
@@ -365,16 +454,6 @@
           <strong style="color: #3b82f6;">Comments Added:</strong> 
           <span style="color: #ccc;">${run.commentsAdded || 0}</span>
         </div>
-        ${
-          run.error
-            ? `
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #ef4444;">Error:</strong> 
-            <span style="color: #ccc;">${run.error}</span>
-          </div>
-        `
-            : ""
-        }
         ${
           threadTitles.length > 0
             ? `
@@ -397,20 +476,46 @@
             </div>
           </div>
         `
-            : threadTitles.length === 0 && run.status === "completed"
-              ? `
-          <div style="margin-top: 1.5rem; color: #666; font-style: italic;">
-            No thread titles recorded for this run.
+            : ""
+        }
+      `;
+    }
+
+    const modalContent = `
+      <div style="text-align: left;">
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #3b82f6;">Date:</strong> 
+          <span style="color: #ccc;">${new Date(run.date).toLocaleString()}</span>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #3b82f6;">Bot Type:</strong> 
+          <span class="bot-type-indicator ${isGPUScan ? "bot-type-gpu" : "bot-type-forum"}">${botType}</span>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #3b82f6;">Status:</strong> 
+          <span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <strong style="color: #3b82f6;">Duration:</strong> 
+          <span style="color: #ccc;">${formatDuration(run.duration) || "Unknown"}</span>
+        </div>
+        ${detailsContent}
+        ${
+          run.error
+            ? `
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #ef4444;">Error:</strong> 
+            <span style="color: #ccc;">${run.error}</span>
           </div>
         `
-              : ""
+            : ""
         }
       </div>
     `;
 
     Modal.show({
       type: "info",
-      title: "Bot Run Details",
+      title: `${botType} Run Details`,
       message: "", // Will be replaced by custom content
       confirmText: "Close",
       confirmClass: "modal-btn-primary",
@@ -423,12 +528,6 @@
       // Hide the cancel button for this info modal
       document.getElementById("modalCancel").style.display = "none";
     }, 10);
-  }
-
-  function generateMockThreadTitles(run) {
-    // This function is no longer needed since we use actual titles
-    // Keeping it for backwards compatibility with old runs that don't have titles stored
-    return [];
   }
 
   function getStatusClass(status) {
@@ -598,6 +697,7 @@
     // Wait a bit before actually refreshing
     setTimeout(async () => {
       await refreshStats();
+      await loadGPUStats();
 
       // Show updated indicator after a delay
       setTimeout(() => {

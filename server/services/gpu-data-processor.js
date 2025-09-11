@@ -1,4 +1,4 @@
-// server/services/gpu-data-processor.js
+// server/services/gpu-data-processor.js - Fixed version
 class GPUDataProcessor {
   constructor(db) {
     this.db = db;
@@ -38,6 +38,7 @@ class GPUDataProcessor {
           user_id: userId,
           brand: listing.brand || this.detectBrand(listing.model),
           source: "forum",
+          location: listing.location || null, // Ensure location is included
         };
 
         // Save to database
@@ -116,10 +117,11 @@ class GPUDataProcessor {
    */
   async clearAllListings() {
     try {
+      // Fixed: Use proper Supabase delete syntax
       const { error } = await this.db.supabase
         .from("gpu_listings")
         .delete()
-        .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all (using impossible ID)
+        .gte("id", 0); // Delete all records
 
       if (error) throw error;
 
@@ -136,9 +138,10 @@ class GPUDataProcessor {
    */
   async getDuplicateStats() {
     try {
+      // Fixed: Use this.db.supabase instead of undefined supabase
       const { data, error } = await this.db.supabase
         .from("gpu_listings")
-        .select("url, model, price, currency")
+        .select("url, model, price, currency, id, scraped_at")
         .order("scraped_at", { ascending: false });
 
       if (error) throw error;
@@ -166,6 +169,7 @@ class GPUDataProcessor {
         totalListings: data.length,
         uniqueListings: Object.keys(urlMap).length,
         duplicateGroups: duplicates.length,
+        totalDuplicates: data.length - Object.keys(urlMap).length,
         duplicates,
       };
     } catch (error) {
@@ -193,8 +197,7 @@ class GPUDataProcessor {
           const { error } = await this.db.supabase
             .from("gpu_listings")
             .delete()
-            .eq("url", dupGroup.url)
-            .eq("scraped_at", sorted[i].scraped_at);
+            .eq("id", sorted[i].id);
 
           if (!error) {
             removed++;

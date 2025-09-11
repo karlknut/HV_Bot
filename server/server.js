@@ -491,6 +491,7 @@ app.post("/api/stop-bot", authenticateToken, async (req, res) => {
 
 app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
+  const scanStartTime = Date.now();
 
   try {
     // Get forum credentials
@@ -502,6 +503,12 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
           "Forum credentials required. Please set them in your dashboard.",
       });
     }
+
+    // Broadcast scan start
+    broadcastToUser(userId, {
+      type: "gpuScanStarted",
+      data: { timestamp: new Date().toISOString() },
+    });
 
     // Create scraper instance with progress callback
     const scraper = new GPUForumScraper((message) => {
@@ -525,6 +532,15 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
     );
 
     if (!scrapeResult.success) {
+      // Add failed scan to history
+      await db.addRunHistory(userId, {
+        date: new Date().toISOString(),
+        status: "error",
+        botType: "gpu",
+        error: scrapeResult.error,
+        duration: Math.round((Date.now() - scanStartTime) / 1000),
+      });
+
       return res.json({
         success: false,
         message: scrapeResult.error || "Scraping failed",
@@ -539,6 +555,32 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
       userId,
     );
 
+    // Calculate duration
+    const duration = Math.round((Date.now() - scanStartTime) / 1000);
+
+    // Add successful scan to history
+    await db.addRunHistory(userId, {
+      date: new Date().toISOString(),
+      status: "completed",
+      botType: "gpu",
+      gpusFound: scrapeResult.totalListings,
+      newGPUs: saveResult.saved,
+      duplicates: saveResult.duplicates,
+      pagesScanned: scrapeResult.processedPages || 0,
+      duration: duration,
+    });
+
+    // Broadcast completion
+    broadcastToUser(userId, {
+      type: "gpuScanCompleted",
+      data: {
+        totalFound: scrapeResult.totalListings,
+        saved: saveResult.saved,
+        duplicates: saveResult.duplicates,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
     // Send success response
     res.json({
       success: true,
@@ -552,6 +594,20 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("GPU scan error:", error);
+
+    // Add error to history
+    try {
+      await db.addRunHistory(userId, {
+        date: new Date().toISOString(),
+        status: "error",
+        botType: "gpu",
+        error: error.message,
+        duration: Math.round((Date.now() - scanStartTime) / 1000),
+      });
+    } catch (historyError) {
+      console.error("Failed to save scan history:", historyError);
+    }
+
     res.status(500).json({
       success: false,
       error: error.message,
@@ -1152,4 +1208,4 @@ process.on("SIGINT", async () => {
   });
 });
 
-module.exports = { app, server };
+module.exports = { app, server, addRunHistory, getRunHistory, migration };

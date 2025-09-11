@@ -1,6 +1,7 @@
 // server/db/supabase.js - Fixed version with GPU functions merged into main db object
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
+const { addRunHistory, getRunHistory } = require("../server");
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -206,20 +207,31 @@ const db = {
 
   // Run History
   async addRunHistory(userId, runData) {
+    const botType =
+      runData.botType || (runData.gpusFound !== undefined ? "gpu" : "forum");
+
+    const historyEntry = {
+      user_id: userId,
+      run_date: runData.date || new Date().toISOString(),
+      status: runData.status,
+      bot_type: botType,
+      duration_seconds: runData.duration || null,
+      error_message: runData.error || null,
+    };
+
+    if (botType === "gpu") {
+      historyEntry.gpus_found = runData.gpusFound || 0;
+      historyEntry.new_gpus = runData.newGPUs || 0;
+      historyEntry.duplicates = runData.duplicates || 0;
+      historyEntry.pages_scanned = runData.pagesScanned || 0;
+    } else {
+      historyEntry.posts_updated = runData.postsUpdated || 0;
+      historyEntry.comments_added = runData.commentsAdded || 0;
+      historyEntry.thread_titles = runData.threadTitles || [];
+    }
     const { data, error } = await supabase
       .from("run_history")
-      .insert([
-        {
-          user_id: userId,
-          run_date: runData.date || new Date().toISOString(),
-          status: runData.status,
-          posts_updated: runData.postsUpdated || 0,
-          comments_added: runData.commentsAdded || 0,
-          thread_titles: runData.threadTitles || [],
-          error_message: runData.error || null,
-          duration_seconds: runData.duration || null,
-        },
-      ])
+      .insert([historyEntry])
       .select()
       .single();
 
@@ -236,7 +248,22 @@ const db = {
       .limit(limit);
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map((run) => ({
+      date: run.run_date,
+      status: run.status,
+      botType: run.bot_type,
+      duration: run.duration_seconds,
+      error: run.error_message,
+      // Forum bot fields
+      postsUpdated: run.posts_updated,
+      commentsAdded: run.comments_added,
+      threadTitles: run.thread_titles,
+      // GPU bot fields
+      gpusFound: run.gpus_found,
+      newGPUs: run.new_gpus,
+      duplicates: run.duplicates,
+      pagesScanned: run.pages_scanned,
+    }));
   },
 
   async cleanupOldRuns(userId, keepCount = 50) {
@@ -263,6 +290,7 @@ const db = {
   // =================== GPU TRACKING FUNCTIONS ===================
 
   async saveGPUListing(listing) {
+    // Include location field
     const { data, error } = await supabase
       .from("gpu_listings")
       .insert([
@@ -274,9 +302,10 @@ const db = {
           title: listing.title,
           url: listing.url,
           author: listing.author,
+          location: listing.location, // Now included
           source: listing.source || "forum",
           scraped_at: listing.scraped_at || new Date().toISOString(),
-          user_id: listing.user_id, // Track which user scraped this
+          user_id: listing.user_id,
         },
       ])
       .select()
@@ -587,4 +616,11 @@ const db = {
   },
 };
 
-module.exports = { supabase, db, encryption };
+module.exports = {
+  supabase,
+  db,
+  encryption,
+  addRunHistory,
+  getRunHistory,
+  migration,
+};
