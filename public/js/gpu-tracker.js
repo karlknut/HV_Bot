@@ -1,19 +1,15 @@
-// public/js/gpu-tracker-fixed.js
-// Replace the content of public/js/gpu-tracker.js with this fixed version
-
+// public/js/gpu-tracker.js - Fixed version
 (function () {
   "use strict";
 
   let gpuListings = [];
   let gpuStats = [];
-  let userAlerts = [];
   let sortColumn = "scraped_at";
   let sortOrder = "desc";
-  let filtersVisible = false;
-  let alertsVisible = false;
-  let isScanning = false;
 
   function init() {
+    console.log("GPU Tracker initializing...");
+
     if (!Auth.isAuthenticated()) {
       window.location.href = "/";
       return;
@@ -27,22 +23,14 @@
 
     setupUserDisplay(user);
     setupEventListeners();
-    
+
     // Load data on page load
+    console.log("Loading initial data...");
     loadListings();
     loadStats();
-    loadUserAlerts();
 
-    // Initialize WebSocket for real-time updates
+    // Initialize WebSocket
     WS.init(handleWebSocketMessage);
-    
-    // Auto-refresh every 30 seconds
-    setInterval(() => {
-      if (!isScanning) {
-        loadListings();
-        loadStats();
-      }
-    }, 30000);
   }
 
   function setupUserDisplay(user) {
@@ -59,18 +47,28 @@
   }
 
   function setupEventListeners() {
-    document.getElementById("logoutBtn")?.addEventListener("click", handleLogout);
-    
-    // Filter inputs with debounce
-    document.getElementById("modelFilter")?.addEventListener("input", debounce(applyFilters, 500));
-    document.getElementById("minPriceFilter")?.addEventListener("input", debounce(applyFilters, 500));
-    document.getElementById("maxPriceFilter")?.addEventListener("input", debounce(applyFilters, 500));
-    document.getElementById("currencyFilter")?.addEventListener("change", applyFilters);
+    document
+      .getElementById("logoutBtn")
+      ?.addEventListener("click", handleLogout);
+
+    // Filter inputs
+    document
+      .getElementById("modelFilter")
+      ?.addEventListener("input", debounce(applyFilters, 500));
+    document
+      .getElementById("minPriceFilter")
+      ?.addEventListener("input", debounce(applyFilters, 500));
+    document
+      .getElementById("maxPriceFilter")
+      ?.addEventListener("input", debounce(applyFilters, 500));
+    document
+      .getElementById("currencyFilter")
+      ?.addEventListener("change", applyFilters);
   }
 
   function handleWebSocketMessage(message) {
     console.log("WebSocket message:", message);
-    
+
     switch (message.type) {
       case "gpuScanUpdate":
         updateProgress(message.data);
@@ -84,12 +82,12 @@
   function updateProgress(message) {
     const progressText = document.getElementById("progressText");
     const progressFill = document.getElementById("progressFill");
-    
+
     if (progressText) {
       progressText.textContent = message;
     }
-    
-    // Estimate progress based on message content
+
+    // Estimate progress
     let progress = 0;
     if (message.includes("Launching")) progress = 5;
     else if (message.includes("Logging")) progress = 10;
@@ -99,91 +97,46 @@
     else if (message.includes("page 2")) progress = 60;
     else if (message.includes("page 3")) progress = 80;
     else if (message.includes("complete")) progress = 100;
-    else if (message.includes("Found:")) {
-      // Increment progress slightly for each GPU found
-      const currentWidth = parseFloat(progressFill.style.width) || 40;
-      progress = Math.min(currentWidth + 1, 95);
-    }
-    
+
     if (progressFill && progress > 0) {
       progressFill.style.width = progress + "%";
     }
   }
 
-  function showPriceAlert(alertData) {
-    Toast.success(
-      "🔔 Price Alert!",
-      `${alertData.model} found at ${alertData.price}${alertData.currency}`,
-      8000
-    );
-  }
-
-  async function startGPUScan() {
-    if (isScanning) {
-      Toast.warning("Scan in Progress", "Please wait for the current scan to complete");
-      return;
-    }
-    
-    const scanButton = document.getElementById("scanButton");
-    const scanProgress = document.getElementById("scanProgress");
-    
-    isScanning = true;
-    scanButton.disabled = true;
-    scanButton.innerHTML = '<span class="btn-icon">⏳</span><span>Scanning...</span>';
-    scanProgress.style.display = "block";
-    
-    // Reset progress
-    document.getElementById("progressFill").style.width = "0%";
-    document.getElementById("progressText").textContent = "Starting GPU scan...";
-    
-    try {
-      const response = await API.post("/api/gpu/scan", {});
-      
-      if (response.success) {
-        const data = response.data;
-        Toast.success(
-          "Scan Complete", 
-          `Found ${data.totalFound} listings, saved ${data.saved} new GPUs${data.triggeredAlerts > 0 ? `, ${data.triggeredAlerts} price alerts triggered` : ""}`
-        );
-        
-        // Reload listings and stats
-        await loadListings();
-        await loadStats();
-        
-      } else {
-        Toast.error("Scan Failed", response.message || "Failed to scan forum");
-      }
-    } catch (error) {
-      console.error("Scan error:", error);
-      Toast.error("Error", "Failed to start GPU scan");
-    } finally {
-      isScanning = false;
-      scanButton.disabled = false;
-      scanButton.innerHTML = '<span class="btn-icon">🔍</span><span>AI Deep Scan</span>';
-      
-      // Hide progress after 2 seconds
-      setTimeout(() => {
-        scanProgress.style.display = "none";
-      }, 2000);
-    }
-  }
-
   async function loadListings() {
     try {
+      console.log("Fetching GPU listings...");
+
       const filters = getFilters();
       const queryParams = new URLSearchParams(filters);
-      
-      console.log("Loading listings with filters:", filters);
-      
-      const response = await API.get(`/api/gpu/listings?${queryParams}`);
-      
-      console.log("Listings response:", response);
-      
-      if (response.success && response.data) {
-        gpuListings = Array.isArray(response.data) ? response.data : [];
+      const url = `/api/gpu/listings?${queryParams}`;
+
+      console.log("Request URL:", url);
+
+      // Make the API call directly with fetch to ensure we get the data
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      console.log("API Response:", result);
+
+      if (result.success && result.data) {
+        gpuListings = Array.isArray(result.data) ? result.data : [];
+        console.log(`Received ${gpuListings.length} GPU listings`);
+
+        if (gpuListings.length > 0) {
+          console.log("First listing:", gpuListings[0]);
+        }
+
         updateTable();
       } else {
-        console.error("Invalid response format:", response);
+        console.error("Invalid response format:", result);
         gpuListings = [];
         updateTable();
       }
@@ -196,12 +149,24 @@
 
   async function loadStats() {
     try {
-      const response = await API.get("/api/gpu/stats");
-      
-      console.log("Stats response:", response);
-      
-      if (response.success && response.data) {
-        gpuStats = Array.isArray(response.data) ? response.data : [];
+      console.log("Fetching GPU stats...");
+
+      // Make the API call directly with fetch
+      const response = await fetch("/api/gpu/stats", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      console.log("Stats response:", result);
+
+      if (result.success && result.data) {
+        gpuStats = Array.isArray(result.data) ? result.data : [];
+        console.log(`Received ${gpuStats.length} GPU model stats`);
         updateStatsDisplay();
       }
     } catch (error) {
@@ -209,115 +174,131 @@
     }
   }
 
-  async function loadUserAlerts() {
-    try {
-      const response = await API.get("/api/gpu/alerts");
-      
-      if (response.success && response.data) {
-        userAlerts = Array.isArray(response.data) ? response.data : [];
-        updateAlertsDisplay();
-        
-        // Update button text
-        const alertButton = document.querySelector('[onclick="toggleAlerts()"]');
-        if (alertButton) {
-          alertButton.innerHTML = `
-            <span class="btn-icon">🔔</span>
-            <span>${alertsVisible ? "Hide" : "Show"} Alerts (${userAlerts.length})</span>
-          `;
-        }
-      }
-    } catch (error) {
-      console.error("Error loading alerts:", error);
-    }
-  }
-
   function getFilters() {
-    return {
+    const filters = {
       model: document.getElementById("modelFilter")?.value || "",
       minPrice: document.getElementById("minPriceFilter")?.value || "",
       maxPrice: document.getElementById("maxPriceFilter")?.value || "",
       currency: document.getElementById("currencyFilter")?.value || "",
       sortBy: sortColumn,
       sortOrder: sortOrder,
-      limit: 100
+      limit: 100,
     };
+
+    console.log("Current filters:", filters);
+    return filters;
   }
 
   function updateTable() {
+    console.log("Updating table with", gpuListings.length, "listings");
+
     const tbody = document.getElementById("gpuTableBody");
-    
+
     if (!tbody) {
-      console.error("Table body element not found");
+      console.error("Table body element 'gpuTableBody' not found!");
       return;
     }
-    
+
     if (!Array.isArray(gpuListings) || gpuListings.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="table-empty">No GPU listings found. Click "AI Deep Scan" to search the forum.</td></tr>';
+      console.log("No listings to display");
+      tbody.innerHTML =
+        '<tr><td colspan="8" class="table-empty">No GPU listings found. Click "AI Deep Scan" to search the forum.</td></tr>';
       return;
     }
-    
-    console.log(`Updating table with ${gpuListings.length} listings`);
-    
-    tbody.innerHTML = gpuListings.map(gpu => `
-      <tr class="gpu-row" style="cursor: pointer;">
-        <td class="gpu-model">${escapeHtml(gpu.model || "Unknown")}</td>
-        <td class="gpu-brand">${escapeHtml(gpu.brand || "Unknown")}</td>
-        <td class="gpu-price">${gpu.price || 0}</td>
-        <td class="gpu-currency">${escapeHtml(gpu.currency || "€")}</td>
-        <td class="gpu-title" title="${escapeHtml(gpu.title || "")}">${escapeHtml(truncate(gpu.title || "No title", 40))}</td>
-        <td class="gpu-author">${escapeHtml(gpu.author || "Unknown")}</td>
-        <td class="gpu-date">${formatDate(gpu.scraped_at)}</td>
-        <td class="gpu-actions" onclick="event.stopPropagation();">
-          <button class="btn-small" onclick="viewGPUDetails('${gpu.id}')">View</button>
-          <a href="${gpu.url}" target="_blank" class="btn-small">Forum</a>
-          <button class="btn-small btn-alert" onclick="createAlert('${escapeHtml(gpu.model)}', ${gpu.price}, '${escapeHtml(gpu.currency)}')">Alert</button>
-        </td>
-      </tr>
-    `).join("");
+
+    console.log("Rendering table rows...");
+
+    tbody.innerHTML = gpuListings
+      .map((gpu, index) => {
+        // Log first few GPUs being rendered
+        if (index < 3) {
+          console.log(
+            `Rendering GPU ${index + 1}: ${gpu.model} - ${gpu.price}${gpu.currency}`,
+          );
+        }
+
+        return `
+        <tr class="gpu-row">
+          <td class="gpu-model">${escapeHtml(gpu.model || "Unknown")}</td>
+          <td class="gpu-brand">${escapeHtml(gpu.brand || "Unknown")}</td>
+          <td class="gpu-price">${gpu.price || 0}</td>
+          <td class="gpu-currency">${escapeHtml(gpu.currency || "€")}</td>
+          <td class="gpu-title" title="${escapeHtml(gpu.title || "")}">${escapeHtml(truncate(gpu.title || "No title", 40))}</td>
+          <td class="gpu-author">${escapeHtml(gpu.author || "Unknown")}</td>
+          <td class="gpu-date">${formatDate(gpu.scraped_at)}</td>
+          <td class="gpu-actions">
+            <button class="btn-small" onclick="viewGPUDetails('${gpu.id}')">View</button>
+            <a href="${gpu.url}" target="_blank" class="btn-small">Forum</a>
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    console.log("Table updated successfully with", gpuListings.length, "rows");
   }
 
   function updateStatsDisplay() {
-    // Calculate statistics
+    console.log("Updating stats display...");
+
     const totalListings = gpuListings.length;
     const totalModels = gpuStats.length;
-    
+
     let avgPrice = 0;
     let lowestPrice = Infinity;
-    let lastScan = null;
-    
+
     if (gpuListings.length > 0) {
-      const prices = gpuListings.map(g => g.price).filter(p => p > 0);
+      const prices = gpuListings.map((g) => g.price).filter((p) => p > 0);
       if (prices.length > 0) {
-        avgPrice = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+        avgPrice = Math.round(
+          prices.reduce((a, b) => a + b, 0) / prices.length,
+        );
         lowestPrice = Math.min(...prices);
       }
-      
-      // Get most recent scan date
-      const dates = gpuListings.map(g => new Date(g.scraped_at));
-      lastScan = dates.reduce((latest, current) => current > latest ? current : latest, new Date(0));
     }
-    
-    // Update display
-    document.getElementById("totalListings").textContent = totalListings;
-    document.getElementById("avgPrice").textContent = avgPrice > 0 ? `€${avgPrice}` : "€0";
-    document.getElementById("lowestPrice").textContent = lowestPrice === Infinity ? "€0" : `€${lowestPrice}`;
-    document.getElementById("totalModels").textContent = totalModels;
-    document.getElementById("lastScan").textContent = lastScan ? formatTimeAgo(lastScan) : "Never";
-    
+
+    // Update display elements
+    const elements = {
+      totalListings: document.getElementById("totalListings"),
+      avgPrice: document.getElementById("avgPrice"),
+      lowestPrice: document.getElementById("lowestPrice"),
+      totalModels: document.getElementById("totalModels"),
+    };
+
+    if (elements.totalListings)
+      elements.totalListings.textContent = totalListings;
+    if (elements.avgPrice)
+      elements.avgPrice.textContent = avgPrice > 0 ? `€${avgPrice}` : "€0";
+    if (elements.lowestPrice)
+      elements.lowestPrice.textContent =
+        lowestPrice === Infinity ? "€0" : `€${lowestPrice}`;
+    if (elements.totalModels) elements.totalModels.textContent = totalModels;
+
+    console.log(
+      `Stats updated: ${totalListings} listings, ${totalModels} models, avg price: €${avgPrice}`,
+    );
+
     // Update model stats table
     updateModelStatsTable();
   }
 
   function updateModelStatsTable() {
     const tbody = document.getElementById("modelStatsBody");
-    if (!tbody) return;
-    
-    if (gpuStats.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No statistics available yet</td></tr>';
+    if (!tbody) {
+      console.log("Model stats table body not found");
       return;
     }
-    
-    tbody.innerHTML = gpuStats.slice(0, 10).map(stat => `
+
+    if (gpuStats.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="6" class="table-empty">No statistics available yet</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = gpuStats
+      .slice(0, 5)
+      .map(
+        (stat) => `
       <tr>
         <td class="gpu-model">${escapeHtml(stat.model)}</td>
         <td class="stat-count">${stat.listingCount || 0}</td>
@@ -326,40 +307,73 @@
         <td class="stat-price">€${stat.maxPrice || 0}</td>
         <td class="gpu-actions">
           <button class="btn-small" onclick="filterByModel('${escapeHtml(stat.model)}')">Filter</button>
-          <button class="btn-small btn-alert" onclick="createAlert('${escapeHtml(stat.model)}', ${stat.minPrice}, '€')">Alert</button>
         </td>
       </tr>
-    `).join("");
+    `,
+      )
+      .join("");
   }
 
-  function updateAlertsDisplay() {
-    const alertsContainer = document.getElementById("alertsContainer");
-    if (!alertsContainer) return;
-    
-    if (userAlerts.length === 0) {
-      alertsContainer.innerHTML = '<p class="table-empty">No price alerts set</p>';
-      return;
+  async function startGPUScan() {
+    console.log("Starting GPU scan...");
+
+    const scanButton = document.getElementById("scanButton");
+    const scanProgress = document.getElementById("scanProgress");
+
+    scanButton.disabled = true;
+    scanButton.innerHTML =
+      '<span class="btn-icon">⏳</span><span>Scanning...</span>';
+    scanProgress.style.display = "block";
+
+    // Reset progress
+    document.getElementById("progressFill").style.width = "0%";
+    document.getElementById("progressText").textContent =
+      "Starting GPU scan...";
+
+    try {
+      // Use fetch directly for the scan
+      const response = await fetch("/api/gpu/scan", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      const result = await response.json();
+
+      console.log("Scan response:", result);
+
+      if (result.success) {
+        const data = result.data;
+        Toast.success(
+          "Scan Complete",
+          `Found ${data.totalFound} listings, saved ${data.saved} new GPUs`,
+        );
+
+        // Reload listings
+        await loadListings();
+        await loadStats();
+      } else {
+        Toast.error("Scan Failed", result.message || "Failed to scan forum");
+      }
+    } catch (error) {
+      console.error("Scan error:", error);
+      Toast.error("Error", "Failed to start GPU scan");
+    } finally {
+      scanButton.disabled = false;
+      scanButton.innerHTML =
+        '<span class="btn-icon">🔍</span><span>AI Deep Scan</span>';
+
+      setTimeout(() => {
+        scanProgress.style.display = "none";
+      }, 2000);
     }
-    
-    alertsContainer.innerHTML = `
-      <div class="alerts-list">
-        ${userAlerts.map(alert => `
-          <div class="alert-item">
-            <div class="alert-info">
-              <strong>${escapeHtml(alert.gpu_model)}</strong>
-              <span class="alert-condition">
-                ${alert.alert_type} ${alert.target_price}${alert.currency}
-              </span>
-              <span class="alert-date">Created: ${formatDate(alert.created_at)}</span>
-            </div>
-            <button class="btn-small btn-danger" onclick="deleteAlert('${alert.id}')">Delete</button>
-          </div>
-        `).join("")}
-      </div>
-    `;
   }
 
   function applyFilters() {
+    console.log("Applying filters...");
     loadListings();
   }
 
@@ -393,28 +407,6 @@
     return new Date(dateString).toLocaleDateString();
   }
 
-  function formatTimeAgo(date) {
-    const seconds = Math.floor((new Date() - date) / 1000);
-    
-    const intervals = {
-      year: 31536000,
-      month: 2592000,
-      week: 604800,
-      day: 86400,
-      hour: 3600,
-      minute: 60
-    };
-    
-    for (const [name, value] of Object.entries(intervals)) {
-      const interval = Math.floor(seconds / value);
-      if (interval >= 1) {
-        return interval === 1 ? `1 ${name} ago` : `${interval} ${name}s ago`;
-      }
-    }
-    
-    return "Just now";
-  }
-
   function handleLogout() {
     Modal.danger("Logout?", "Are you sure you want to logout?", () => {
       WS.close();
@@ -422,74 +414,135 @@
     });
   }
 
-  // Global functions for onclick handlers
+  function showPriceAlert(alertData) {
+    Toast.success(
+      "🔔 Price Alert!",
+      `${alertData.model} found at ${alertData.price}${alertData.currency}`,
+      8000,
+    );
+  }
+
+  window.checkDuplicates = async function () {
+    try {
+      const response = await fetch("/api/gpu/duplicates", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const stats = result.data;
+        const message = `
+        Total Listings: ${stats.totalListings}
+        Unique Listings: ${stats.uniqueListings}
+        Duplicate Groups: ${stats.duplicateGroups}
+        
+        Remove duplicates?
+      `;
+
+        if (confirm(message)) {
+          removeDuplicates();
+        }
+      }
+    } catch (error) {
+      console.error("Error checking duplicates:", error);
+      Toast.error("Error", "Failed to check duplicates");
+    }
+  };
+
+  window.removeDuplicates = async function () {
+    try {
+      const response = await fetch("/api/gpu/remove-duplicates", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        Toast.success("Duplicates Removed", result.message);
+        loadListings(); // Reload the listings
+      } else {
+        Toast.error("Failed", result.error || "Failed to remove duplicates");
+      }
+    } catch (error) {
+      console.error("Error removing duplicates:", error);
+      Toast.error("Error", "Failed to remove duplicates");
+    }
+  };
+
+  window.clearDatabase = async function () {
+    if (
+      !confirm(
+        "⚠️ WARNING: This will delete ALL GPU listings from the database. Are you sure?",
+      )
+    ) {
+      return;
+    }
+
+    if (!confirm("This action cannot be undone. Continue?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/gpu/clear-all", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        Toast.success("Database Cleared", "All GPU listings have been removed");
+        loadListings(); // Reload (will show empty)
+      } else {
+        Toast.error("Failed", result.error || "Failed to clear database");
+      }
+    } catch (error) {
+      console.error("Error clearing database:", error);
+      Toast.error("Error", "Failed to clear database");
+    }
+  };
+
+  // Global functions
   window.startGPUScan = startGPUScan;
-  window.refreshListings = function() {
+  window.refreshListings = function () {
+    console.log("Refreshing listings...");
     Toast.info("Refreshing", "Loading latest listings...", 2000);
     loadListings();
     loadStats();
   };
-  
-  window.toggleFilters = function() {
+
+  window.toggleFilters = function () {
     const filtersSection = document.getElementById("filtersSection");
-    filtersVisible = !filtersVisible;
-    filtersSection.style.display = filtersVisible ? "grid" : "none";
-    
-    const button = document.querySelector('[onclick="toggleFilters()"]');
-    button.innerHTML = `
-      <span class="btn-icon">⚙️</span>
-      <span>${filtersVisible ? "Hide" : "Show"} Filters</span>
-    `;
+    const isVisible = filtersSection.style.display === "grid";
+    filtersSection.style.display = isVisible ? "none" : "grid";
   };
-  
-  window.toggleAlerts = function() {
-    const alertsSection = document.getElementById("alertsSection");
-    alertsVisible = !alertsVisible;
-    alertsSection.style.display = alertsVisible ? "block" : "none";
-    
-    const button = document.querySelector('[onclick="toggleAlerts()"]');
-    button.innerHTML = `
-      <span class="btn-icon">🔔</span>
-      <span>${alertsVisible ? "Hide" : "Show"} Alerts (${userAlerts.length})</span>
-    `;
-  };
-  
-  window.filterByModel = function(model) {
+
+  window.filterByModel = function (model) {
+    console.log("Filtering by model:", model);
     document.getElementById("modelFilter").value = model;
     applyFilters();
-    document.getElementById("listingsSection").scrollIntoView({ behavior: "smooth" });
   };
-  
-  window.sortTable = function(column) {
-    if (sortColumn === column) {
-      sortOrder = sortOrder === "asc" ? "desc" : "asc";
-    } else {
-      sortColumn = column;
-      sortOrder = "desc";
+
+  window.viewGPUDetails = function (id) {
+    const gpu = gpuListings.find((g) => g.id == id);
+    if (gpu) {
+      console.log("Viewing GPU details:", gpu);
+      alert(
+        `GPU: ${gpu.model}\nPrice: ${gpu.price}${gpu.currency}\nAuthor: ${gpu.author}`,
+      );
     }
-    loadListings();
-  };
-  
-  window.viewGPUDetails = function(listingId) {
-    const gpu = gpuListings.find(g => g.id == listingId);
-    if (!gpu) return;
-    
-    Modal.alert("GPU Details", `
-      Model: ${gpu.model}
-      Price: ${gpu.price}${gpu.currency}
-      Author: ${gpu.author}
-      Posted: ${formatDate(gpu.scraped_at)}
-    `);
-  };
-  
-  window.createAlert = async function(model, price, currency) {
-    // Implementation from original file
-    Toast.info("Alert", "Creating price alert...");
-  };
-  
-  window.deleteAlert = async function(alertId) {
-    // Implementation from original file
-    Toast.info("Alert", "Deleting alert...");
   };
 
   // Initialize when DOM is loaded

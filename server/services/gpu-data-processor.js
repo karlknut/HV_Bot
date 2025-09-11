@@ -5,7 +5,7 @@ class GPUDataProcessor {
   }
 
   /**
-   * Process and save scraped GPU data
+   * Process and save scraped GPU data with duplicate checking
    * @param {Array} gpuListings - Raw GPU listings from scraper
    * @param {string} userId - User who initiated the scan
    * @returns {Object} Processing results
@@ -16,17 +16,19 @@ class GPUDataProcessor {
       saved: 0,
       duplicates: 0,
       errors: [],
-      processed: []
+      processed: [],
     };
 
     for (const listing of gpuListings) {
       try {
-        // Check if listing already exists (by URL)
-        const existing = await this.checkDuplicate(listing.url);
-        
-        if (existing) {
+        // Check for duplicate based on URL (which contains thread ID)
+        const isDuplicate = await this.checkDuplicate(listing.url);
+
+        if (isDuplicate) {
           results.duplicates++;
-          console.log(`Duplicate found: ${listing.model} - ${listing.url}`);
+          console.log(
+            `Duplicate found (skipping): ${listing.model} - ${listing.url}`,
+          );
           continue;
         }
 
@@ -35,73 +37,185 @@ class GPUDataProcessor {
           ...listing,
           user_id: userId,
           brand: listing.brand || this.detectBrand(listing.model),
-          condition: this.detectCondition(listing.title + " " + listing.content),
-          warranty: this.detectWarranty(listing.title + " " + listing.content),
-          location: this.detectLocation(listing.title + " " + listing.content),
-          source: "forum"
+          source: "forum",
         };
 
         // Save to database
         const saved = await this.db.saveGPUListing(enhancedListing);
-        
+
         if (saved) {
           results.saved++;
           results.processed.push({
             id: saved.id,
             model: listing.model,
             price: listing.price,
-            currency: listing.currency
+            currency: listing.currency,
           });
-          
-          console.log(`✅ Saved: ${listing.model} - ${listing.price}${listing.currency}`);
+
+          console.log(
+            `✅ Saved NEW listing: ${listing.model} - ${listing.price}${listing.currency}`,
+          );
         }
-        
       } catch (error) {
         console.error(`Error processing listing: ${error.message}`);
         results.errors.push({
           listing: listing.model || listing.title,
-          error: error.message
+          error: error.message,
         });
       }
     }
 
     // Update price history after processing
-    try {
-      await this.updatePriceHistory();
-    } catch (error) {
-      console.error("Error updating price history:", error);
+    if (results.saved > 0) {
+      try {
+        await this.updatePriceHistory();
+      } catch (error) {
+        console.error("Error updating price history:", error);
+      }
     }
+
+    console.log(
+      `Processing complete: ${results.saved} new, ${results.duplicates} duplicates, ${results.errors.length} errors`,
+    );
 
     return results;
   }
 
   /**
-   * Check if listing already exists
+   * Check if listing already exists based on URL
    */
   async checkDuplicate(url) {
     try {
-      const { data } = await this.db.supabase
+      // Use Supabase to check if URL already exists
+      const { data, error } = await this.db.supabase
         .from("gpu_listings")
         .select("id")
         .eq("url", url)
         .single();
-      
-      return !!data;
+
+      // If we get data back, it's a duplicate
+      if (data) {
+        return true;
+      }
+
+      // If error is "No rows found", it's not a duplicate
+      if (error && error.code === "PGRST116") {
+        return false;
+      }
+
+      // For any other error, assume not duplicate to allow saving
+      return false;
     } catch (error) {
-      // No duplicate found
+      // On error, assume not duplicate
       return false;
     }
   }
 
   /**
-   * Detect GPU brand from model name
+   * Clear all GPU listings from database (admin function)
    */
+  async clearAllListings() {
+    try {
+      const { error } = await this.db.supabase
+        .from("gpu_listings")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all (using impossible ID)
+
+      if (error) throw error;
+
+      console.log("All GPU listings cleared from database");
+      return true;
+    } catch (error) {
+      console.error("Error clearing listings:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get duplicate statistics
+   */
+  async getDuplicateStats() {
+    try {
+      const { data, error } = await this.db.supabase
+        .from("gpu_listings")
+        .select("url, model, price, currency")
+        .order("scraped_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Group by URL to find duplicates
+      const urlMap = {};
+      data.forEach((item) => {
+        if (!urlMap[item.url]) {
+          urlMap[item.url] = [];
+        }
+        urlMap[item.url].push(item);
+      });
+
+      // Find URLs with duplicates
+      const duplicates = Object.entries(urlMap)
+        .filter(([url, items]) => items.length > 1)
+        .map(([url, items]) => ({
+          url,
+          count: items.length,
+          model: items[0].model,
+          listings: items,
+        }));
+
+      return {
+        totalListings: data.length,
+        uniqueListings: Object.keys(urlMap).length,
+        duplicateGroups: duplicates.length,
+        duplicates,
+      };
+    } catch (error) {
+      console.error("Error getting duplicate stats:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove duplicate listings, keeping only the oldest one
+   */
+  async removeDuplicates() {
+    try {
+      const stats = await this.getDuplicateStats();
+      let removed = 0;
+
+      for (const dupGroup of stats.duplicates) {
+        // Sort by scraped_at to keep the oldest
+        const sorted = dupGroup.listings.sort(
+          (a, b) => new Date(a.scraped_at) - new Date(b.scraped_at),
+        );
+
+        // Remove all except the first (oldest)
+        for (let i = 1; i < sorted.length; i++) {
+          const { error } = await this.db.supabase
+            .from("gpu_listings")
+            .delete()
+            .eq("url", dupGroup.url)
+            .eq("scraped_at", sorted[i].scraped_at);
+
+          if (!error) {
+            removed++;
+          }
+        }
+      }
+
+      console.log(`Removed ${removed} duplicate listings`);
+      return removed;
+    } catch (error) {
+      console.error("Error removing duplicates:", error);
+      throw error;
+    }
+  }
+
   detectBrand(model) {
     if (!model) return "Unknown";
-    
+
     const modelUpper = model.toUpperCase();
-    
-    if (modelUpper.includes("RTX") || modelUpper.includes("GTX") || modelUpper.includes("GEFORCE")) {
+
+    if (modelUpper.includes("RTX") || modelUpper.includes("GTX")) {
       return "NVIDIA";
     }
     if (modelUpper.includes("RX") || modelUpper.includes("RADEON")) {
@@ -110,79 +224,10 @@ class GPUDataProcessor {
     if (modelUpper.includes("ARC")) {
       return "Intel";
     }
-    
+
     return "Unknown";
   }
 
-  /**
-   * Detect condition from text
-   */
-  detectCondition(text) {
-    const textLower = text.toLowerCase();
-    
-    if (textLower.includes("uus") || textLower.includes("new") || textLower.includes("avamata")) {
-      return "new";
-    }
-    if (textLower.includes("vähe kasutatud") || textLower.includes("nagu uus")) {
-      return "like-new";
-    }
-    if (textLower.includes("heas korras") || textLower.includes("korras")) {
-      return "good";
-    }
-    if (textLower.includes("kasutatud")) {
-      return "used";
-    }
-    
-    return "unknown";
-  }
-
-  /**
-   * Detect warranty info from text
-   */
-  detectWarranty(text) {
-    const textLower = text.toLowerCase();
-    
-    if (textLower.includes("garantii")) {
-      // Try to extract warranty duration
-      const warrantyMatch = textLower.match(/(\d+)\s*(kuu|aasta|months?|years?)/);
-      if (warrantyMatch) {
-        const duration = warrantyMatch[1];
-        const unit = warrantyMatch[2];
-        
-        if (unit.includes("aasta") || unit.includes("year")) {
-          return `${duration} year(s)`;
-        } else {
-          return `${duration} month(s)`;
-        }
-      }
-      return "yes";
-    }
-    
-    return "unknown";
-  }
-
-  /**
-   * Detect location from text
-   */
-  detectLocation(text) {
-    const locations = [
-      "Tallinn", "Tartu", "Narva", "Pärnu", "Kohtla-Järve",
-      "Viljandi", "Rakvere", "Maardu", "Kuressaare", "Sillamäe",
-      "Valga", "Võru", "Jõhvi", "Keila", "Haapsalu", "Paide"
-    ];
-    
-    for (const location of locations) {
-      if (text.includes(location)) {
-        return location;
-      }
-    }
-    
-    return "Estonia";
-  }
-
-  /**
-   * Update price history for all models
-   */
   async updatePriceHistory() {
     try {
       await this.db.updateGPUPriceHistory();
@@ -193,66 +238,36 @@ class GPUDataProcessor {
     }
   }
 
-  /**
-   * Get market statistics
-   */
   async getMarketStats() {
     try {
       const stats = await this.db.getGPUStats();
-      
-      // Calculate additional insights
+
       const insights = {
         totalModels: stats.length,
-        averagePrice: this.calculateAverage(stats.map(s => s.avgPrice)),
-        priceRange: {
-          min: Math.min(...stats.map(s => s.minPrice)),
-          max: Math.max(...stats.map(s => s.maxPrice))
-        },
-        topModels: stats.slice(0, 5).map(s => ({
-          model: s.model,
-          avgPrice: s.avgPrice,
-          listings: s.listingCount
-        })),
-        brandDistribution: this.calculateBrandDistribution(stats)
+        averagePrice:
+          stats.length > 0
+            ? Math.round(
+                stats.reduce((a, s) => a + s.avgPrice, 0) / stats.length,
+              )
+            : 0,
+        priceRange:
+          stats.length > 0
+            ? {
+                min: Math.min(...stats.map((s) => s.minPrice)),
+                max: Math.max(...stats.map((s) => s.maxPrice)),
+              }
+            : { min: 0, max: 0 },
+        topModels: stats.slice(0, 5),
       };
-      
+
       return {
         stats,
-        insights
+        insights,
       };
     } catch (error) {
       console.error("Error getting market stats:", error);
       throw error;
     }
-  }
-
-  /**
-   * Calculate average
-   */
-  calculateAverage(numbers) {
-    if (numbers.length === 0) return 0;
-    return Math.round(numbers.reduce((a, b) => a + b, 0) / numbers.length);
-  }
-
-  /**
-   * Calculate brand distribution
-   */
-  calculateBrandDistribution(stats) {
-    const brands = {};
-    
-    for (const stat of stats) {
-      const brand = this.detectBrand(stat.model);
-      if (!brands[brand]) {
-        brands[brand] = {
-          count: 0,
-          totalListings: 0
-        };
-      }
-      brands[brand].count++;
-      brands[brand].totalListings += stat.listingCount;
-    }
-    
-    return brands;
   }
 
   /**
@@ -262,19 +277,19 @@ class GPUDataProcessor {
     try {
       const alerts = await this.db.checkPriceAlerts();
       const triggered = [];
-      
+
       for (const alert of alerts) {
         for (const listing of newListings) {
           if (this.matchesAlert(listing, alert)) {
             triggered.push({
               alert,
               listing,
-              userId: alert.user_id
+              userId: alert.user_id,
             });
           }
         }
       }
-      
+
       return triggered;
     } catch (error) {
       console.error("Error checking price alerts:", error);
@@ -290,12 +305,12 @@ class GPUDataProcessor {
     if (!listing.model.toLowerCase().includes(alert.gpu_model.toLowerCase())) {
       return false;
     }
-    
+
     // Check currency
     if (listing.currency !== alert.currency) {
       return false;
     }
-    
+
     // Check price condition
     switch (alert.alert_type) {
       case "below":

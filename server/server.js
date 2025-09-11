@@ -3,9 +3,6 @@ require("dotenv").config({
   path: require("path").join(__dirname, "..", ".env"),
 });
 
-const GPUForumScraper = require("../scrapers/gpu-forum-scraper");
-const GPUDataProcessor = require("../services/gpu-data-processor");
-
 const express = require("express");
 const WebSocket = require("ws");
 const http = require("http");
@@ -14,8 +11,11 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 
+const GPUForumScraper = require("./scrapers/gpu-forum-scraper");
+const GPUDataProcessor = require("./services/gpu-data-processor");
+
 // Import database functions
-const { db } = require("./db/supabase");
+const { db, supabase } = require("./db/supabase");
 
 // Create Express app
 const app = express();
@@ -491,14 +491,15 @@ app.post("/api/stop-bot", authenticateToken, async (req, res) => {
 
 app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
-  
+
   try {
     // Get forum credentials
     const credentials = await db.getForumCredentials(userId);
     if (!credentials) {
       return res.status(400).json({
         success: false,
-        message: "Forum credentials required. Please set them in your dashboard."
+        message:
+          "Forum credentials required. Please set them in your dashboard.",
       });
     }
 
@@ -507,50 +508,36 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
       // Send progress updates via WebSocket
       broadcastToUser(userId, {
         type: "gpuScanUpdate",
-        data: message
+        data: message,
       });
     });
 
-    // Run the scraper
+    // Run the scraper with better defaults
     console.log(`Starting GPU scan for user ${userId}`);
     const scrapeResult = await scraper.scrape(
       credentials.username,
       credentials.password,
       {
-        maxPages: 3,          // Scan first 3 pages
-        maxThreadsPerPage: 20, // Process up to 20 threads per page
-        headless: false        // Set to true for production
-      }
+        maxPages: 10, // Scan up to 10 pages
+        maxThreadsPerPage: 30, // Process up to 30 threads per page
+        headless: false, // Set to true for production
+      },
     );
 
     if (!scrapeResult.success) {
       return res.json({
         success: false,
         message: scrapeResult.error || "Scraping failed",
-        partialResults: scrapeResult.data.length
+        partialResults: scrapeResult.data.length,
       });
     }
 
-    // Process and save the data
+    // Process and save the data with duplicate checking
     const processor = new GPUDataProcessor(db);
-    const saveResult = await processor.processAndSave(scrapeResult.data, userId);
-
-    // Check for triggered price alerts
-    const triggeredAlerts = await processor.checkPriceAlerts(saveResult.processed);
-    
-    // Send notifications for triggered alerts
-    for (const trigger of triggeredAlerts) {
-      broadcastToUser(trigger.userId, {
-        type: "priceAlert",
-        data: {
-          model: trigger.listing.model,
-          price: trigger.listing.price,
-          currency: trigger.listing.currency,
-          targetPrice: trigger.alert.target_price,
-          url: trigger.listing.url
-        }
-      });
-    }
+    const saveResult = await processor.processAndSave(
+      scrapeResult.data,
+      userId,
+    );
 
     // Send success response
     res.json({
@@ -560,16 +547,14 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
         saved: saveResult.saved,
         duplicates: saveResult.duplicates,
         errors: saveResult.errors,
-        triggeredAlerts: triggeredAlerts.length
       },
-      message: `Successfully scraped ${scrapeResult.totalListings} listings, saved ${saveResult.saved} new entries`
+      message: `Found ${scrapeResult.totalListings} listings: ${saveResult.saved} new, ${saveResult.duplicates} duplicates skipped`,
     });
-
   } catch (error) {
     console.error("GPU scan error:", error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -584,11 +569,11 @@ app.get("/api/gpu/listings", authenticateToken, async (req, res) => {
       currency,
       limit = 100,
       sortBy = "scraped_at",
-      sortOrder = "desc"
+      sortOrder = "desc",
     } = req.query;
 
     // Build query
-    let query = db.supabase
+    let query = supabase
       .from("gpu_listings")
       .select("*")
       .order(sortBy, { ascending: sortOrder === "asc" });
@@ -597,25 +582,25 @@ app.get("/api/gpu/listings", authenticateToken, async (req, res) => {
     if (model) {
       query = query.ilike("model", `%${model}%`);
     }
-    
+
     if (minPrice) {
       query = query.gte("price", parseFloat(minPrice));
     }
-    
+
     if (maxPrice) {
       query = query.lte("price", parseFloat(maxPrice));
     }
-    
+
     if (currency) {
       query = query.eq("currency", currency);
     }
-    
+
     // Limit results
     query = query.limit(parseInt(limit));
 
     // Execute query
     const { data: listings, error } = await query;
-    
+
     if (error) {
       console.error("Database query error:", error);
       throw error;
@@ -623,21 +608,20 @@ app.get("/api/gpu/listings", authenticateToken, async (req, res) => {
 
     // Ensure we always return an array
     const results = listings || [];
-    
+
     console.log(`Returning ${results.length} GPU listings`);
 
     res.json({
       success: true,
       data: results,
-      total: results.length
+      total: results.length,
     });
-
   } catch (error) {
     console.error("GPU listings error:", error);
     res.status(500).json({
       success: false,
       error: error.message,
-      data: [] // Always return empty array on error
+      data: [], // Always return empty array on error
     });
   }
 });
@@ -647,19 +631,18 @@ app.get("/api/gpu/stats", authenticateToken, async (req, res) => {
   try {
     const processor = new GPUDataProcessor(db);
     const marketData = await processor.getMarketStats();
-    
+
     res.json({
       success: true,
       data: marketData.stats,
-      insights: marketData.insights
+      insights: marketData.insights,
     });
-    
   } catch (error) {
     console.error("GPU stats error:", error);
     res.status(500).json({
       success: false,
       error: error.message,
-      data: []
+      data: [],
     });
   }
 });
@@ -667,46 +650,47 @@ app.get("/api/gpu/stats", authenticateToken, async (req, res) => {
 // Manual test endpoint for GPU scraping (development only)
 app.get("/api/gpu/test-scrape", authenticateToken, async (req, res) => {
   if (process.env.NODE_ENV !== "development") {
-    return res.status(403).json({ error: "Test endpoint only available in development" });
+    return res
+      .status(403)
+      .json({ error: "Test endpoint only available in development" });
   }
-  
+
   const userId = req.user.userId;
-  
+
   try {
     // Get forum credentials
     const credentials = await db.getForumCredentials(userId);
     if (!credentials) {
       return res.status(400).json({
         success: false,
-        message: "Forum credentials required"
+        message: "Forum credentials required",
       });
     }
 
     // Create scraper with console output
     const scraper = new GPUForumScraper(console.log);
-    
+
     // Run minimal scrape for testing
     const result = await scraper.scrape(
       credentials.username,
       credentials.password,
       {
-        maxPages: 1,          // Only first page
-        maxThreadsPerPage: 5,  // Only 5 threads
-        headless: false
-      }
+        maxPages: 1, // Only first page
+        maxThreadsPerPage: 5, // Only 5 threads
+        headless: false,
+      },
     );
-    
+
     res.json({
       success: result.success,
       data: result.data,
-      message: `Test scrape found ${result.data.length} listings`
+      message: `Test scrape found ${result.data.length} listings`,
     });
-    
   } catch (error) {
     console.error("Test scrape error:", error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -1011,6 +995,61 @@ app.get("/api/gpu/market-analysis", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Market analysis error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+app.delete("/api/gpu/clear-all", authenticateToken, async (req, res) => {
+  try {
+    const processor = new GPUDataProcessor(db);
+    await processor.clearAllListings();
+
+    res.json({
+      success: true,
+      message: "All GPU listings cleared",
+    });
+  } catch (error) {
+    console.error("Clear listings error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/api/gpu/duplicates", authenticateToken, async (req, res) => {
+  try {
+    const processor = new GPUDataProcessor(db);
+    const stats = await processor.getDuplicateStats();
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    console.error("Duplicate stats error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Remove duplicate listings
+app.post("/api/gpu/remove-duplicates", authenticateToken, async (req, res) => {
+  try {
+    const processor = new GPUDataProcessor(db);
+    const removed = await processor.removeDuplicates();
+
+    res.json({
+      success: true,
+      message: `Removed ${removed} duplicate listings`,
+    });
+  } catch (error) {
+    console.error("Remove duplicates error:", error);
     res.status(500).json({
       success: false,
       error: error.message,
