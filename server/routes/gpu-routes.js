@@ -30,8 +30,8 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
       credentials.username,
       credentials.password,
       {
-        maxPages: 3, // Scan first 3 pages
-        maxThreadsPerPage: 20, // Process up to 20 threads per page
+        maxPages: 8, // Scan first 3 pages
+        maxThreadsPerPage: 29, // Process up to 20 threads per page
         headless: false, // Set to true for production
       },
     );
@@ -99,7 +99,7 @@ app.get("/api/gpu/listings", authenticateToken, async (req, res) => {
       minPrice,
       maxPrice,
       currency,
-      limit = 100,
+      limit = 1000,
       sortBy = "scraped_at",
       sortOrder = "desc",
     } = req.query;

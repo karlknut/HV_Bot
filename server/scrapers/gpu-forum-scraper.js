@@ -1,4 +1,4 @@
-// server/scrapers/gpu-forum-scraper.js - Fixed pagination and PC build detection
+// server/scrapers/gpu-forum-scraper.js - Enhanced version with category filtering and multiple GPU support
 const puppeteer = require("puppeteer");
 
 class GPUForumScraper {
@@ -11,24 +11,107 @@ class GPUForumScraper {
   }
 
   async scrape(username, password, options = {}) {
-    const { maxPages = 20, maxThreadsPerPage = 50, headless = true } = options;
+    const { maxPages = 50, headless = true } = options;
 
     try {
-      this.updateCallback("🚀 Starting Enhanced GPU Forum Scraper...");
+      this.updateCallback(
+        "🚀 Starting Enhanced GPU Forum Scraper with Category Filtering...",
+      );
 
       await this.launchBrowser(headless);
       await this.login(username, password);
 
-      // Navigate to initial page
-      await this.page.goto("https://foorum.hinnavaatlus.ee/viewforum.php?f=3", {
-        waitUntil: "networkidle2",
-        timeout: 30000,
-      });
+      // Start from page 1 (start=0)
+      let startOffset = 0;
+      let currentPage = 1;
+      const threadsPerPage = 28; // Max threads per page
 
-      await this.scrapeAllPages(maxPages, maxThreadsPerPage);
+      while (currentPage <= maxPages) {
+        this.updateCallback(
+          `📄 Scraping page ${currentPage} (start=${startOffset})...`,
+        );
+
+        // Navigate to specific page
+        const pageUrl = `https://foorum.hinnavaatlus.ee/viewforum.php?f=3&topicdays=0&start=${startOffset}`;
+
+        try {
+          await this.page.goto(pageUrl, {
+            waitUntil: "networkidle2",
+            timeout: 30000,
+          });
+
+          // Wait for content to load
+          await this.page.waitForSelector("table.forumline", {
+            timeout: 10000,
+          });
+        } catch (error) {
+          this.updateCallback(
+            `⚠️ Failed to load page ${currentPage}: ${error.message}`,
+          );
+          break;
+        }
+
+        // Get threads with "Videokaardid" category filter
+        const videokaardidThreads = await this.getVideokaardidThreads();
+
+        if (videokaardidThreads.length === 0) {
+          this.updateCallback(
+            `📭 No Videokaardid threads found on page ${currentPage}`,
+          );
+        } else {
+          this.updateCallback(
+            `🎯 Found ${videokaardidThreads.length} Videokaardid threads on page ${currentPage}`,
+          );
+
+          let gpusFoundOnPage = 0;
+
+          // Process each Videokaardid thread
+          for (const thread of videokaardidThreads) {
+            if (this.processedThreads.has(thread.url)) {
+              continue;
+            }
+
+            try {
+              const found = await this.scrapeThread(thread);
+              if (found) {
+                gpusFoundOnPage++;
+              }
+
+              this.processedThreads.add(thread.url);
+
+              // Small delay between threads
+              await this.page.waitForTimeout(500);
+            } catch (error) {
+              this.updateCallback(
+                `❌ Error processing thread "${thread.title}": ${error.message}`,
+              );
+            }
+          }
+
+          this.updateCallback(
+            `✅ Page ${currentPage}: Found ${gpusFoundOnPage} GPU listings from ${videokaardidThreads.length} Videokaardid threads`,
+          );
+        }
+
+        // Check if we should continue (if we found fewer threads than expected, likely last page)
+        const allThreadsOnPage = await this.getAllThreadsCount();
+        if (allThreadsOnPage < threadsPerPage) {
+          this.updateCallback(
+            `📄 Page ${currentPage} had ${allThreadsOnPage} threads (less than ${threadsPerPage}), likely the last page`,
+          );
+          break;
+        }
+
+        // Move to next page
+        currentPage++;
+        startOffset += 25; // Increment by 25
+
+        // Brief pause between pages
+        await this.page.waitForTimeout(1000);
+      }
 
       this.updateCallback(
-        `✅ Scraping complete! Found ${this.gpuData.length} GPU listings`,
+        `🏁 Scraping complete! Found ${this.gpuData.length} GPU listings from ${this.processedThreads.size} Videokaardid threads`,
       );
 
       return {
@@ -36,10 +119,7 @@ class GPUForumScraper {
         data: this.gpuData,
         totalListings: this.gpuData.length,
         processedThreads: this.processedThreads.size,
-        processedPages:
-          this.processedThreads.size > 0
-            ? Math.ceil(this.processedThreads.size / 25)
-            : 0,
+        processedPages: currentPage - 1,
       };
     } catch (error) {
       this.updateCallback(`❌ Scraper error: ${error.message}`);
@@ -77,6 +157,9 @@ class GPUForumScraper {
       timeout: 10000,
     });
     await this.page.type('input[name="identifier"]', username);
+    await this.page.waitForSelector("input[name=password]", {
+      timeout: 10000,
+    });
     await this.page.type('input[name="password"]', password);
 
     await this.page.waitForSelector(
@@ -99,144 +182,102 @@ class GPUForumScraper {
     this.updateCallback("✅ Login successful!");
   }
 
-  async scrapeAllPages(maxPages, maxThreadsPerPage) {
-    let currentPage = 1;
-    let startOffset = 0;
-    const INCREMENT = 25;
-
-    while (currentPage <= maxPages) {
-      this.updateCallback(`📄 Scraping page ${currentPage}/${maxPages}...`);
-
-      // Navigate to specific page using start parameter
-      const pageUrl = `https://foorum.hinnavaatlus.ee/viewforum.php?f=3&topicdays=0&start=${startOffset}`;
-
-      await this.page.goto(pageUrl, {
-        waitUntil: "networkidle2",
-        timeout: 30000,
-      });
-
-      // Wait for table to load
-      try {
-        await this.page.waitForSelector("table.forumline", { timeout: 10000 });
-      } catch (error) {
-        this.updateCallback(`No content found on page ${currentPage}`);
-        break;
-      }
-
-      // Get all thread links from current page
-      const threadLinks = await this.getThreadLinks();
-
-      if (threadLinks.length === 0) {
-        this.updateCallback(`No threads found on page ${currentPage}`);
-        break;
-      }
-
-      this.updateCallback(
-        `Found ${threadLinks.length} threads on page ${currentPage}`,
-      );
-
-      let processedCount = 0;
-      let gpusFoundOnPage = 0;
-
-      // Process each thread
-      for (const thread of threadLinks) {
-        if (processedCount >= maxThreadsPerPage) break;
-        if (this.processedThreads.has(thread.url)) continue;
-
-        const found = await this.scrapeThread(thread);
-        if (found) {
-          gpusFoundOnPage++;
-        }
-
-        this.processedThreads.add(thread.url);
-        processedCount++;
-
-        // Small delay between threads to avoid being blocked
-        await this.page.waitForTimeout(500);
-      }
-
-      this.updateCallback(
-        `Page ${currentPage}: Found ${gpusFoundOnPage} GPU listings`,
-      );
-
-      // Check if there's a next page
-      const hasNextPage = await this.page.evaluate(() => {
-        // Look for "Järgmine" (Next) link
-        const links = Array.from(document.querySelectorAll("a"));
-        return links.some((link) => link.textContent.includes("Järgmine"));
-      });
-
-      if (!hasNextPage) {
-        this.updateCallback(`Reached last page at page ${currentPage}`);
-        break;
-      }
-
-      currentPage++;
-      startOffset += INCREMENT;
-    }
-
-    this.updateCallback(
-      `Processed ${currentPage} pages, found ${this.gpuData.length} GPU listings`,
-    );
-  }
-
-  async getThreadLinks() {
+  async getVideokaardidThreads() {
     return await this.page.evaluate(() => {
       const threads = [];
-      let rows = document.querySelectorAll("table.forumline tr");
 
-      if (rows.length === 0) {
-        rows = document.querySelectorAll("table tr");
+      // Get all table rows
+      const rows = document.querySelectorAll("table.forumline tbody tr");
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+
+        try {
+          // Look for the category span (Videokaardid)
+          const categorySpan = row.querySelector(
+            "td:nth-child(2) span.topictitle a span:nth-child(2)",
+          );
+
+          if (
+            categorySpan &&
+            categorySpan.textContent.trim() === "Videokaardid"
+          ) {
+            // Get the main thread link
+            const threadLink = row.querySelector(
+              "td:nth-child(2) span.topictitle a",
+            );
+
+            if (threadLink && threadLink.href) {
+              const title = threadLink.textContent.trim();
+              const url = threadLink.href;
+
+              // Get location from span:nth-child(3) under "Asukoht"
+              let location = null;
+              const locationSpan = row.querySelector(
+                "td:nth-child(2) span.topictitle a span:nth-child(3)",
+              );
+              if (locationSpan) {
+                const locationText = locationSpan.textContent.trim();
+                // Check if it contains location info (often prefixed with "Asukoht:" or similar)
+                if (locationText && !locationText.includes("Videokaardid")) {
+                  location = locationText.replace(/^Asukoht:?\s*/i, "").trim();
+                }
+              }
+
+              // Get author
+              let author = "Unknown";
+              const authorLink =
+                row.querySelector('a[href*="profile.php"]') ||
+                row.querySelector(".username") ||
+                row.querySelector("span.name a");
+              if (authorLink) {
+                author = authorLink.textContent.trim();
+              }
+
+              threads.push({
+                title,
+                url,
+                author,
+                location: location || null,
+                category: "Videokaardid",
+              });
+
+              console.log(
+                `Found Videokaardid thread: ${title} (Location: ${location || "N/A"})`,
+              );
+            }
+          }
+        } catch (e) {
+          console.warn("Error processing row:", e.message);
+        }
       }
 
-      // Skip header rows (usually first 3)
+      console.log(`Total Videokaardid threads found: ${threads.length}`);
+      return threads;
+    });
+  }
+
+  async getAllThreadsCount() {
+    return await this.page.evaluate(() => {
+      const rows = document.querySelectorAll("table.forumline tbody tr");
+      // Filter out header rows (usually first few rows don't have proper thread data)
+      let threadCount = 0;
       for (let i = 3; i < rows.length; i++) {
         const row = rows[i];
         const titleLink = row.querySelector('a[href*="viewtopic.php"]');
-
-        if (titleLink && titleLink.href) {
-          const title = titleLink.textContent.trim();
-          const url = titleLink.href;
-
-          // Get author
-          let author = "Unknown";
-          const authorLink =
-            row.querySelector('a[href*="profile.php"]') ||
-            row.querySelector(".username") ||
-            row.querySelector("span.name a");
-          if (authorLink) {
-            author = authorLink.textContent.trim();
-          }
-
-          threads.push({ title, url, author });
+        if (titleLink) {
+          threadCount++;
         }
       }
-
-      return threads;
+      return threadCount;
     });
   }
 
   async scrapeThread(thread) {
     try {
-      // Pre-filter: Skip if title suggests full PC build
-      if (this.isFullPCBuild(thread.title)) {
-        this.updateCallback(
-          `⏭️ Skipping PC build: ${thread.title.substring(0, 30)}...`,
-        );
-        return false;
-      }
-
-      // Quick GPU check
-      const titleHasGPU = this.quickGPUCheck(thread.title);
-
-      if (!titleHasGPU) {
-        this.updateCallback(
-          `⏭️ Skipping non-GPU thread: ${thread.title.substring(0, 30)}...`,
-        );
-        return false;
-      }
-
-      this.updateCallback(`🔍 Processing: ${thread.title.substring(0, 50)}...`);
+      this.updateCallback(
+        `🔍 Processing Videokaardid thread: ${thread.title.substring(0, 50)}...`,
+      );
 
       // Navigate to thread
       await this.page.goto(thread.url, {
@@ -247,166 +288,220 @@ class GPUForumScraper {
       const threadData = await this.extractThreadData();
       const fullText = `${thread.title} ${threadData.content}`;
 
-      // Extract location from both title and content
-      let location = this.extractLocation(thread.title);
+      // Extract all GPUs and their prices from the thread
+      const gpuListings = this.extractAllGPUs(fullText);
+
+      // Use location from thread listing if available, otherwise extract from content
+      let location = thread.location;
       if (!location) {
-        location = this.extractLocation(threadData.content);
+        location = this.extractLocation(fullText);
       }
 
-      // More thorough PC build check
-      if (this.isFullPCBuild(fullText)) {
+      if (gpuListings.length === 0) {
         this.updateCallback(
-          `⏭️ Skipping PC build (detected in content): ${thread.title.substring(0, 30)}...`,
+          `⚠️ No GPUs found in: ${thread.title.substring(0, 30)}...`,
         );
         return false;
       }
 
-      // Extract multiple GPUs and their prices
-      const gpuListings = this.extractMultipleGPUs(fullText);
+      // Handle multiple GPUs case
+      if (gpuListings.length > 1) {
+        // Create a single "Multiple GPUs" entry
+        const gpuEntry = {
+          id: this.generateId(thread.url) + "_multiple",
+          model: "Multiple",
+          brand: "Multiple",
+          price: this.calculateAveragePrice(gpuListings),
+          currency: gpuListings[0].currency, // Use first GPU's currency
+          title: thread.title,
+          url: thread.url,
+          author: thread.author,
+          location: location,
+          scraped_at: new Date().toISOString(),
+          multiple_gpus: gpuListings, // Store all GPUs for detailed view
+          gpu_count: gpuListings.length,
+        };
 
-      if (gpuListings.length > 0) {
-        for (const listing of gpuListings) {
-          const gpuEntry = {
-            id:
-              this.generateId(thread.url) +
-              "_" +
-              Math.random().toString(36).substr(2, 9),
-            model: listing.model,
-            brand: this.detectBrand(listing.model),
-            price: listing.price,
-            currency: listing.currency,
-            title: thread.title,
-            url: thread.url,
-            author: thread.author,
-            location: location,
-            scraped_at: new Date().toISOString(),
-          };
-
-          this.gpuData.push(gpuEntry);
-          this.updateCallback(
-            `✅ Found: ${listing.model} - ${listing.price}${listing.currency} (${location || "Location unknown"})`,
-          );
-        }
-
-        return true;
+        this.gpuData.push(gpuEntry);
+        this.updateCallback(
+          `✅ Found Multiple GPUs (${gpuListings.length}): ${gpuListings.map((g) => g.model).join(", ")} (${location || "Location unknown"})`,
+        );
       } else {
+        // Single GPU
+        const listing = gpuListings[0];
+        const gpuEntry = {
+          id: this.generateId(thread.url),
+          model: listing.model,
+          brand: this.detectBrand(listing.model),
+          price: listing.price,
+          currency: listing.currency,
+          title: thread.title,
+          url: thread.url,
+          author: thread.author,
+          location: location,
+          scraped_at: new Date().toISOString(),
+        };
+
+        this.gpuData.push(gpuEntry);
         this.updateCallback(
-          `⚠️ No GPU/price found in: ${thread.title.substring(0, 30)}...`,
+          `✅ Found: ${listing.model} - ${listing.price}${listing.currency} (${location || "Location unknown"})`,
         );
-        return false;
       }
+
+      return true;
     } catch (error) {
       this.updateCallback(`❌ Error scraping thread: ${error.message}`);
       return false;
     }
   }
 
-  isFullPCBuild(text) {
+  calculateAveragePrice(gpuListings) {
+    const prices = gpuListings.map((gpu) => gpu.price);
+    return Math.round(
+      prices.reduce((sum, price) => sum + price, 0) / prices.length,
+    );
+  }
+
+  extractAllGPUs(text) {
+    const gpuListings = [];
     const upperText = text.toUpperCase();
 
-    // Keywords that indicate full PC build
-    const pcBuildKeywords = [
-      "KOMPLEKT",
-      "FULL PC",
-      "KOGU ARVUTI",
-      "GAMING PC",
-      "ARVUTI KOMPLEKT",
-      "PC BUILD",
-      "TÄISARVUTI",
-      "COMPLETE PC",
-      "KOGU KOMPLEKT",
-      "TERVE ARVUTI",
-      "GAMING ARVUTI",
+    // Enhanced GPU patterns for better detection
+    const patterns = [
+      // NVIDIA RTX 40xx series
+      /RTX\s*40[5-9]0\s*(TI|SUPER)?/gi,
+      /RTX\s*4060\s*(TI)?/gi,
+      /RTX\s*4070\s*(TI|SUPER)?/gi,
+      /RTX\s*4080\s*(SUPER)?/gi,
+      /RTX\s*4090/gi,
+
+      // NVIDIA RTX 30xx series
+      /RTX\s*30[5-9]0\s*(TI)?/gi,
+      /RTX\s*3060\s*(TI)?/gi,
+      /RTX\s*3070\s*(TI)?/gi,
+      /RTX\s*3080\s*(TI)?/gi,
+      /RTX\s*3090\s*(TI)?/gi,
+
+      // NVIDIA RTX 20xx series
+      /RTX\s*20[6-8]0\s*(SUPER)?/gi,
+
+      // NVIDIA GTX series
+      /GTX\s*16[5-6]0\s*(TI|SUPER)?/gi,
+      /GTX\s*10[5-8]0\s*(TI)?/gi,
+      /GTX\s*9[6-8]0/gi,
+
+      // AMD RX 7000 series
+      /RX\s*7[0-9]00\s*(XT|XTX)?/gi,
+
+      // AMD RX 6000 series
+      /RX\s*6[0-9]00\s*(XT|XTX)?/gi,
+
+      // AMD RX 5000 series
+      /RX\s*5[0-9]00\s*(XT)?/gi,
+
+      // Intel Arc
+      /ARC\s*A[0-9]{3,4}/gi,
+
+      // Generic patterns
+      /RTX\s*\d{4}\s*(TI|SUPER|XTX)?/gi,
+      /GTX\s*\d{4}\s*(TI|SUPER)?/gi,
+      /RX\s*\d{4}\s*(XT|XTX)?/gi,
     ];
 
-    // Check for explicit PC build keywords
-    for (const keyword of pcBuildKeywords) {
-      if (upperText.includes(keyword)) {
-        return true;
+    // Find all unique GPU models
+    const foundGPUs = new Set();
+    for (const pattern of patterns) {
+      const matches = text.match(pattern);
+      if (matches) {
+        matches.forEach((match) => {
+          const normalized = match.trim().replace(/\s+/g, " ").toUpperCase();
+          foundGPUs.add(normalized);
+        });
       }
     }
 
-    // Component keywords that when combined suggest PC build
-    const components = {
-      cpu: [
-        "CPU",
-        "PROTSESSOR",
-        "PROCESSOR",
-        "RYZEN",
-        "INTEL CORE",
-        "I5",
-        "I7",
-        "I9",
-      ],
-      mobo: ["EMAPLAAT", "MOTHERBOARD", "MAINBOARD", "MOBO", "MB"],
-      ram: ["RAM", "MÄLU", "MEMORY", "DDR", "OPERATIIVMÄLU"],
-      psu: ["TOITEPLOKK", "POWER SUPPLY", "PSU", "WATT", "TOIDE"],
-      case: ["KORPUS", "TOWER", "CHASSIS", "CASE"],
-      storage: ["SSD", "KÕVAKETAS", "HDD", "STORAGE", "NVME", "KETAS"],
-    };
+    // Extract prices for each GPU
+    const prices = this.extractAllPrices(text);
 
-    // Count how many different component types are mentioned
-    let componentCount = 0;
-    for (const [type, keywords] of Object.entries(components)) {
-      for (const keyword of keywords) {
-        if (upperText.includes(keyword)) {
-          componentCount++;
-          break; // Only count each component type once
+    if (foundGPUs.size === 0) {
+      return [];
+    }
+
+    // If we have multiple GPUs and multiple prices, try to match them
+    if (foundGPUs.size > 1 && prices.length > 1) {
+      const gpuArray = Array.from(foundGPUs);
+
+      // Try to match each GPU with a price based on proximity in text
+      for (let i = 0; i < gpuArray.length && i < prices.length; i++) {
+        gpuListings.push({
+          model: gpuArray[i],
+          price: prices[i].price,
+          currency: prices[i].currency,
+        });
+      }
+
+      // If we have more GPUs than prices, use the first price for remaining GPUs
+      if (gpuArray.length > prices.length) {
+        for (let i = prices.length; i < gpuArray.length; i++) {
+          gpuListings.push({
+            model: gpuArray[i],
+            price: prices[0].price,
+            currency: prices[0].currency,
+          });
+        }
+      }
+    } else if (foundGPUs.size >= 1 && prices.length >= 1) {
+      // Single GPU or single price - match them
+      const gpu = Array.from(foundGPUs)[0];
+      const price = prices[0];
+
+      gpuListings.push({
+        model: gpu,
+        price: price.price,
+        currency: price.currency,
+      });
+    }
+
+    return gpuListings;
+  }
+
+  extractAllPrices(text) {
+    const prices = [];
+    const patterns = [
+      { regex: /AH[:\s]*(\d+)/gi, currency: "AH" },
+      { regex: /OK[:\s]*(\d+)/gi, currency: "OK" },
+      { regex: /€\s*(\d+(?:[,\.]\d{1,2})?)/g, currency: "€" },
+      { regex: /(\d+(?:[,\.]\d{1,2})?)\s*€/g, currency: "€" },
+      { regex: /(\d+(?:[,\.]\d{1,2})?)\s*EUR/gi, currency: "€" },
+      { regex: /HIND[:\s]*(\d+)/gi, currency: "€" },
+      { regex: /(\d{2,4})\s*eurot?/gi, currency: "€" },
+    ];
+
+    for (const pattern of patterns) {
+      const matches = [...text.matchAll(pattern.regex)];
+      for (const match of matches) {
+        let price = parseFloat(match[1].replace(",", "."));
+
+        // Validate price range (GPUs typically 50-5000)
+        if (!isNaN(price) && price >= 50 && price <= 5000) {
+          prices.push({
+            price: Math.round(price),
+            currency: pattern.currency,
+          });
         }
       }
     }
 
-    // If 4 or more different components mentioned, likely a PC build
-    // Also check if it has both CPU and motherboard which strongly indicates PC build
-    const hasCPU = components.cpu.some((k) => upperText.includes(k));
-    const hasMobo = components.mobo.some((k) => upperText.includes(k));
+    // Remove duplicate prices (same price and currency)
+    const uniquePrices = prices.filter(
+      (price, index, self) =>
+        index ===
+        self.findIndex(
+          (p) => p.price === price.price && p.currency === price.currency,
+        ),
+    );
 
-    return componentCount >= 4 || (hasCPU && hasMobo && componentCount >= 3);
-  }
-
-  quickGPUCheck(text) {
-    const upperText = text.toUpperCase();
-    const gpuKeywords = [
-      "RTX",
-      "GTX",
-      "RX",
-      "RADEON",
-      "GEFORCE",
-      "ARC",
-      "VIDEOKAART",
-      "GRAAFIKAKAART",
-      "GPU",
-      "GRAPHICS",
-      "VIDEO KAART",
-      "GRAAFIKA",
-      "1060",
-      "1070",
-      "1080",
-      "1650",
-      "1660",
-      "2060",
-      "2070",
-      "2080",
-      "3060",
-      "3070",
-      "3080",
-      "3090",
-      "4060",
-      "4070",
-      "4080",
-      "4090",
-      "5700",
-      "6600",
-      "6700",
-      "6800",
-      "6900",
-      "7600",
-      "7700",
-      "7800",
-      "7900",
-    ];
-
-    return gpuKeywords.some((keyword) => upperText.includes(keyword));
+    return uniquePrices;
   }
 
   extractLocation(text) {
@@ -456,7 +551,6 @@ class GPUForumScraper {
       /LOCATION[:\s]*([A-Z\s,]+)/,
       /SAAB KÄTTE[:\s]*([A-ZÄÖÜÕ\s,]+)/,
       /ASUB[:\s]*([A-ZÄÖÜÕ\s,]+)/,
-      /ASUKOHT[:\s]*([A-ZÄÖÜÕ\s,]+)/,
     ];
 
     // Try patterns first
@@ -464,19 +558,16 @@ class GPUForumScraper {
       const match = upperText.match(pattern);
       if (match) {
         const locationText = match[1].trim();
-        // Check if it's a valid city
         for (const city of cities) {
           if (locationText.includes(city)) {
-            // Return with proper casing
             return city.charAt(0) + city.slice(1).toLowerCase();
           }
         }
       }
     }
 
-    // Direct city search in text (fallback)
+    // Direct city search
     for (const city of cities) {
-      // Check with word boundaries to avoid false matches
       const cityPattern = new RegExp(`\\b${city}\\b`);
       if (cityPattern.test(upperText)) {
         return city.charAt(0) + city.slice(1).toLowerCase();
@@ -484,89 +575,6 @@ class GPUForumScraper {
     }
 
     return null;
-  }
-
-  extractMultipleGPUs(text) {
-    const gpuListings = [];
-    const upperText = text.toUpperCase();
-
-    // GPU patterns
-    const patterns = [
-      // NVIDIA patterns
-      /RTX\s*40[5-9]0\s*(TI|SUPER)?/gi,
-      /RTX\s*4060\s*(TI)?/gi,
-      /RTX\s*4070\s*(TI|SUPER)?/gi,
-      /RTX\s*4080\s*(SUPER)?/gi,
-      /RTX\s*4090/gi,
-      /RTX\s*30[5-9]0\s*(TI)?/gi,
-      /RTX\s*3060\s*(TI)?/gi,
-      /RTX\s*3070\s*(TI)?/gi,
-      /RTX\s*3080\s*(TI)?/gi,
-      /RTX\s*3090\s*(TI)?/gi,
-      /RTX\s*20[6-8]0\s*(SUPER)?/gi,
-      /GTX\s*16[5-6]0\s*(TI|SUPER)?/gi,
-      /GTX\s*10[5-8]0\s*(TI)?/gi,
-      /GTX\s*9[6-8]0/gi,
-
-      // AMD patterns
-      /RX\s*7[0-9]00\s*(XT|XTX)?/gi,
-      /RX\s*6[0-9]00\s*(XT|XTX)?/gi,
-      /RX\s*5[0-9]00\s*(XT)?/gi,
-      /RADEON\s*\d{4}/gi,
-
-      // Intel patterns
-      /ARC\s*A[0-9]{3,4}/gi,
-    ];
-
-    // Find all GPU models
-    const foundGPUs = new Set();
-    for (const pattern of patterns) {
-      const matches = text.match(pattern);
-      if (matches) {
-        matches.forEach((match) => {
-          const normalized = match.trim().replace(/\s+/g, " ").toUpperCase();
-          foundGPUs.add(normalized);
-        });
-      }
-    }
-
-    // For each GPU, try to find its price
-    for (const gpu of foundGPUs) {
-      // Create a text segment around the GPU mention to find its price
-      const gpuIndex = upperText.indexOf(gpu);
-
-      if (gpuIndex !== -1) {
-        // Get text within ~200 characters of the GPU mention
-        const contextStart = Math.max(0, gpuIndex - 100);
-        const contextEnd = Math.min(text.length, gpuIndex + gpu.length + 100);
-        const context = text.substring(contextStart, contextEnd);
-
-        const priceData = this.extractPrice(context);
-
-        if (priceData) {
-          gpuListings.push({
-            model: gpu,
-            price: priceData.price,
-            currency: priceData.currency,
-          });
-        }
-      }
-    }
-
-    // If multiple GPUs but only one price found, check if it's a combined listing
-    if (foundGPUs.size > 1 && gpuListings.length === 1) {
-      // Look for "koos" (together) or similar keywords
-      if (
-        upperText.includes("KOOS") ||
-        upperText.includes("KOKKU") ||
-        upperText.includes("KOMPLEKT")
-      ) {
-        // This is likely a bundle, skip or mark accordingly
-        return [];
-      }
-    }
-
-    return gpuListings;
   }
 
   async extractThreadData() {
@@ -582,7 +590,6 @@ class GPUForumScraper {
       for (const selector of contentSelectors) {
         const elements = document.querySelectorAll(selector);
         if (elements.length > 0) {
-          // Get first post content
           content = elements[0].textContent || elements[0].innerText || "";
           if (content.length > 50) break;
         }
@@ -593,37 +600,6 @@ class GPUForumScraper {
         title: document.title,
       };
     });
-  }
-
-  extractPrice(text) {
-    const patterns = [
-      { regex: /AH[:\s]*(\d+)/gi, currency: "AH" },
-      { regex: /OK[:\s]*(\d+)/gi, currency: "OK" },
-      { regex: /€\s*(\d+(?:[,\.]\d{1,2})?)/g, currency: "€" },
-      { regex: /(\d+(?:[,\.]\d{1,2})?)\s*€/g, currency: "€" },
-      { regex: /(\d+(?:[,\.]\d{1,2})?)\s*EUR/gi, currency: "€" },
-      { regex: /HIND[:\s]*(\d+)/gi, currency: "€" },
-      { regex: /(\d{2,4})\s*eurot?/gi, currency: "€" },
-    ];
-
-    for (const pattern of patterns) {
-      const matches = [...text.matchAll(pattern.regex)];
-      if (matches.length > 0) {
-        for (const match of matches) {
-          let price = parseFloat(match[1].replace(",", "."));
-
-          // Validate price range (GPUs typically 50-5000)
-          if (!isNaN(price) && price >= 50 && price <= 5000) {
-            return {
-              price: Math.round(price),
-              currency: pattern.currency,
-            };
-          }
-        }
-      }
-    }
-
-    return null;
   }
 
   detectBrand(model) {

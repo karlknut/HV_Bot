@@ -1,4 +1,4 @@
-// public/js/gpu-tracker.js - Fixed version with proper duplicate handling
+// public/js/gpu-tracker.js - Enhanced version with Multiple GPUs support
 (function () {
   "use strict";
 
@@ -6,14 +6,14 @@
   let filteredListings = [];
   let gpuStats = [];
   let currentPage = 1;
-  let itemsPerPage = 25;
+  let itemsPerPage = 10;
   let sortColumn = "scraped_at";
   let sortOrder = "desc";
   let currentFilter = null;
   let filterApplied = false;
 
   function init() {
-    console.log("GPU Tracker initializing...");
+    console.log("Enhanced GPU Tracker initializing...");
 
     if (!Auth.isAuthenticated()) {
       window.location.href = "/";
@@ -30,12 +30,10 @@
     setupEventListeners();
     setupPaginationControls();
 
-    // Load data on page load
     console.log("Loading initial data...");
     loadListings();
     loadStats();
 
-    // Initialize WebSocket
     WS.init(handleWebSocketMessage);
   }
 
@@ -71,41 +69,56 @@
       .getElementById("currencyFilter")
       ?.addEventListener("change", applyFilters);
 
-    // Clear filters button
-    const clearFiltersBtn = document.getElementById("clearFiltersBtn");
-    if (!clearFiltersBtn) {
-      // Add clear filters button if it doesn't exist
-      const filtersSection = document.getElementById("filtersSection");
-      if (filtersSection) {
-        const clearBtn = document.createElement("button");
-        clearBtn.id = "clearFiltersBtn";
-        clearBtn.className = "btn btn-secondary";
-        clearBtn.innerHTML =
-          '<span class="btn-icon">✖</span><span>Clear Filters</span>';
-        clearBtn.onclick = clearAllFilters;
-        clearBtn.style.gridColumn = "span 4";
-        clearBtn.style.marginTop = "1rem";
-        filtersSection.appendChild(clearBtn);
+    setupClearFiltersButton();
+  }
+
+  function setupClearFiltersButton() {
+    const filtersSection = document.getElementById("filtersSection");
+    if (!filtersSection) return;
+
+    let clearBtn = document.getElementById("clearFiltersBtn");
+    if (!clearBtn) {
+      clearBtn = document.createElement("button");
+      clearBtn.id = "clearFiltersBtn";
+      clearBtn.className = "btn btn-secondary";
+      clearBtn.innerHTML =
+        '<span class="btn-icon">✖</span><span>Clear Filters</span>';
+      clearBtn.onclick = clearAllFilters;
+      clearBtn.style.gridColumn = "span 4";
+      clearBtn.style.marginTop = "1rem";
+      filtersSection.appendChild(clearBtn);
+    }
+
+    // Add quick clear button next to controls
+    const controlsSection = document.querySelector(".controls-section");
+    if (controlsSection) {
+      let quickClearBtn = document.getElementById("quickClearBtn");
+      if (!quickClearBtn) {
+        quickClearBtn = document.createElement("button");
+        quickClearBtn.id = "quickClearBtn";
+        quickClearBtn.className = "btn btn-secondary";
+        quickClearBtn.innerHTML =
+          '<span class="btn-icon">🔄</span><span>Reset Filters</span>';
+        quickClearBtn.onclick = clearAllFilters;
+        quickClearBtn.style.display = "none";
+        controlsSection.appendChild(quickClearBtn);
       }
     }
   }
 
   function setupPaginationControls() {
-    // Add pagination controls to the page if they don't exist
     const listingsSection = document.getElementById("listingsSection");
     if (!listingsSection) return;
 
-    // Check if pagination controls already exist
     let paginationControls = document.getElementById("paginationControls");
     if (!paginationControls) {
-      // Create pagination controls
       const paginationHTML = `
         <div id="paginationControls" style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0;">
           <div>
             <label style="color: #aaa; margin-right: 0.5rem;">Show:</label>
             <select id="itemsPerPageSelect" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.3rem; border-radius: 5px;">
-              <option value="10">10</option>
-              <option value="25" selected>25</option>
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
               <option value="50">50</option>
               <option value="100">100</option>
               <option value="200">200</option>
@@ -122,12 +135,9 @@
         </div>
       `;
 
-      // Insert before table
       const tableContainer = listingsSection.querySelector(".table-container");
       if (tableContainer) {
         tableContainer.insertAdjacentHTML("beforebegin", paginationHTML);
-
-        // Also add at bottom
         tableContainer.insertAdjacentHTML(
           "afterend",
           paginationHTML.replace(
@@ -168,7 +178,6 @@
           itemsPerPage = parseInt(e.target.value);
           currentPage = 1;
           updateTable();
-          // Sync with top select
           document.getElementById("itemsPerPageSelect").value = e.target.value;
         });
 
@@ -204,7 +213,6 @@
         showPriceAlert(message.data);
         break;
       case "gpuScanCompleted":
-        // Refresh data after scan completes
         setTimeout(() => {
           loadListings();
           loadStats();
@@ -221,20 +229,16 @@
       progressText.textContent = message;
     }
 
-    // Estimate progress based on message content
     let progress = 0;
     if (message.includes("Launching")) progress = 5;
     else if (message.includes("Logging")) progress = 10;
-    else if (message.includes("Navigating")) progress = 20;
-    else if (message.includes("page 1")) progress = 30;
-    else if (message.includes("page 2")) progress = 40;
-    else if (message.includes("page 3")) progress = 50;
-    else if (message.includes("page 4")) progress = 60;
-    else if (message.includes("page 5")) progress = 70;
-    else if (message.includes("page 6")) progress = 80;
-    else if (message.includes("page 7")) progress = 85;
+    else if (message.includes("page 2")) progress = 30;
+    else if (message.includes("page 3")) progress = 40;
+    else if (message.includes("page 4")) progress = 50;
+    else if (message.includes("page 5")) progress = 60;
+    else if (message.includes("page 6")) progress = 70;
+    else if (message.includes("page 7")) progress = 80;
     else if (message.includes("page 8")) progress = 90;
-    else if (message.includes("page 9")) progress = 95;
     else if (message.includes("complete")) progress = 100;
 
     if (progressFill && progress > 0) {
@@ -249,11 +253,9 @@
       const filters = getFilters();
       const queryParams = new URLSearchParams({
         ...filters,
-        limit: 1000, // Get more listings at once
+        limit: 1000,
       });
       const url = `/api/gpu/listings?${queryParams}`;
-
-      console.log("Request URL:", url);
 
       const response = await fetch(url, {
         method: "GET",
@@ -265,16 +267,10 @@
 
       const result = await response.json();
 
-      console.log("API Response:", result);
-
       if (result.success && result.data) {
         gpuListings = Array.isArray(result.data) ? result.data : [];
         filteredListings = [...gpuListings];
         console.log(`Received ${gpuListings.length} GPU listings`);
-
-        if (gpuListings.length > 0) {
-          console.log("First listing:", gpuListings[0]);
-        }
 
         currentPage = 1;
         updateTable();
@@ -294,8 +290,6 @@
 
   async function loadStats() {
     try {
-      console.log("Fetching GPU stats...");
-
       const response = await fetch("/api/gpu/stats", {
         method: "GET",
         headers: {
@@ -306,11 +300,8 @@
 
       const result = await response.json();
 
-      console.log("Stats response:", result);
-
       if (result.success && result.data) {
         gpuStats = Array.isArray(result.data) ? result.data : [];
-        console.log(`Received ${gpuStats.length} GPU model stats`);
         updateStatsDisplay();
       }
     } catch (error) {
@@ -329,7 +320,6 @@
       sortOrder: sortOrder,
     };
 
-    console.log("Current filters:", filters);
     return filters;
   }
 
@@ -343,32 +333,31 @@
       return;
     }
 
-    // Calculate pagination
     const totalItems = filteredListings.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
     const pageListings = filteredListings.slice(startIndex, endIndex);
 
-    // Update pagination info
     updatePaginationInfo(startIndex, endIndex, totalItems, totalPages);
 
     if (pageListings.length === 0) {
-      console.log("No listings to display");
       tbody.innerHTML =
         '<tr><td colspan="9" class="table-empty">No GPU listings found. Click "Deep Scan" to search the forum.</td></tr>';
       return;
     }
 
-    console.log(
-      `Rendering ${pageListings.length} listings for page ${currentPage}`,
-    );
-
+    // Enhanced table rendering with Multiple GPU support
     tbody.innerHTML = pageListings
-      .map((gpu, index) => {
+      .map((gpu) => {
+        const isMultiple = gpu.model === "Multiple" && gpu.multiple_gpus;
+
         return `
-        <tr class="gpu-row">
-          <td class="gpu-model">${escapeHtml(gpu.model || "Unknown")}</td>
+        <tr class="gpu-row" onclick="viewGPUDetails('${gpu.id}')">
+          <td class="gpu-model">
+            ${escapeHtml(gpu.model)}
+            ${isMultiple ? `<span style="color: #f59e0b; font-size: 0.8em;">(${gpu.gpu_count} GPUs)</span>` : ""}
+          </td>
           <td class="gpu-brand">${escapeHtml(gpu.brand || "Unknown")}</td>
           <td class="gpu-price">${gpu.price || 0}</td>
           <td class="gpu-currency">${escapeHtml(gpu.currency || "€")}</td>
@@ -377,8 +366,10 @@
           <td class="gpu-author">${escapeHtml(gpu.author || "Unknown")}</td>
           <td class="gpu-date">${formatDate(gpu.scraped_at)}</td>
           <td class="gpu-actions">
-            <button class="btn-small" onclick="viewGPUDetails('${gpu.id}')">View</button>
-            <a href="${gpu.url}" target="_blank" class="btn-small">Forum</a>
+            <button class="btn-small" onclick="event.stopPropagation(); viewGPUDetails('${gpu.id}')" title="${isMultiple ? "View All GPUs" : "View Details"}">
+              ${isMultiple ? "View All" : "View"}
+            </button>
+            <a href="${gpu.url}" target="_blank" class="btn-small" onclick="event.stopPropagation()">Forum</a>
           </td>
         </tr>
       `;
@@ -435,7 +426,6 @@
     const totalListings = gpuListings.length;
     const totalModels = gpuStats.length;
 
-    // Update display elements
     const elements = {
       totalListings: document.getElementById("totalListings"),
       avgPrice: document.getElementById("avgPrice"),
@@ -449,7 +439,6 @@
 
     // Only show average price when filtering by model
     if (filterApplied && currentFilter) {
-      // Calculate average for filtered listings
       const prices = filteredListings.map((g) => g.price).filter((p) => p > 0);
       if (prices.length > 0) {
         const avgPrice = Math.round(
@@ -466,7 +455,6 @@
         }
       }
     } else {
-      // Hide average price when showing all listings
       if (elements.avgPrice) {
         elements.avgPrice.parentElement.style.display = "none";
       }
@@ -483,9 +471,8 @@
 
     if (elements.totalModels) elements.totalModels.textContent = totalModels;
 
-    // Update last scan time
+    // Update last scan time - Fixed to properly check for listings
     if (elements.lastScan && gpuListings.length > 0) {
-      // Get the most recent scraped_at date
       const latestDate = gpuListings.reduce((latest, gpu) => {
         const gpuDate = new Date(gpu.scraped_at);
         return gpuDate > latest ? gpuDate : latest;
@@ -496,13 +483,10 @@
       } else {
         elements.lastScan.textContent = "Never";
       }
+    } else if (elements.lastScan) {
+      elements.lastScan.textContent = "Never";
     }
 
-    console.log(
-      `Stats updated: ${totalListings} listings, ${totalModels} models`,
-    );
-
-    // Update model stats table (show only top 5)
     updateModelStatsTable();
   }
 
@@ -521,10 +505,7 @@
 
   function updateModelStatsTable() {
     const tbody = document.getElementById("modelStatsBody");
-    if (!tbody) {
-      console.log("Model stats table body not found");
-      return;
-    }
+    if (!tbody) return;
 
     if (gpuStats.length === 0) {
       tbody.innerHTML =
@@ -533,7 +514,7 @@
     }
 
     tbody.innerHTML = gpuStats
-      .slice(0, 5) // Only show top 5
+      .slice(0, 5)
       .map(
         (stat) => `
       <tr>
@@ -552,7 +533,7 @@
   }
 
   async function startGPUScan() {
-    console.log("Starting GPU scan...");
+    console.log("Starting Enhanced GPU scan...");
 
     const scanButton = document.getElementById("scanButton");
     const scanProgress = document.getElementById("scanProgress");
@@ -562,10 +543,9 @@
       '<span class="btn-icon">⏳</span><span>Scanning...</span>';
     scanProgress.style.display = "block";
 
-    // Reset progress
     document.getElementById("progressFill").style.width = "0%";
     document.getElementById("progressText").textContent =
-      "Starting GPU scan...";
+      "Starting enhanced GPU scan...";
 
     try {
       const response = await fetch("/api/gpu/scan", {
@@ -579,8 +559,6 @@
 
       const result = await response.json();
 
-      console.log("Scan response:", result);
-
       if (result.success) {
         const data = result.data;
         Toast.success(
@@ -588,7 +566,6 @@
           `Found ${data.totalFound} listings, saved ${data.saved} new GPUs`,
         );
 
-        // Reload listings
         await loadListings();
         await loadStats();
       } else {
@@ -613,7 +590,6 @@
 
     const filters = getFilters();
 
-    // Set filter applied flag
     filterApplied = !!(
       filters.model ||
       filters.minPrice ||
@@ -621,9 +597,13 @@
       filters.currency
     );
 
-    // Filter the listings locally
+    // Show/hide quick clear button
+    const quickClearBtn = document.getElementById("quickClearBtn");
+    if (quickClearBtn) {
+      quickClearBtn.style.display = filterApplied ? "block" : "none";
+    }
+
     filteredListings = gpuListings.filter((gpu) => {
-      // Model filter
       if (
         filters.model &&
         !gpu.model.toLowerCase().includes(filters.model.toLowerCase())
@@ -631,7 +611,6 @@
         return false;
       }
 
-      // Price filters
       if (filters.minPrice && gpu.price < parseFloat(filters.minPrice)) {
         return false;
       }
@@ -640,7 +619,6 @@
         return false;
       }
 
-      // Currency filter
       if (filters.currency && gpu.currency !== filters.currency) {
         return false;
       }
@@ -648,7 +626,6 @@
       return true;
     });
 
-    // Sort the filtered listings
     filteredListings.sort((a, b) => {
       let aVal = a[sortColumn];
       let bVal = b[sortColumn];
@@ -670,23 +647,26 @@
 
     currentPage = 1;
     updateTable();
-    updateStatsDisplay(); // Update stats to show/hide average price
+    updateStatsDisplay();
   }
 
   function clearAllFilters() {
     console.log("Clearing all filters...");
 
-    // Clear filter inputs
     document.getElementById("modelFilter").value = "";
     document.getElementById("minPriceFilter").value = "";
     document.getElementById("maxPriceFilter").value = "";
     document.getElementById("currencyFilter").value = "";
 
-    // Clear current filter
     currentFilter = null;
     filterApplied = false;
 
-    // Reset filtered listings
+    // Hide quick clear button
+    const quickClearBtn = document.getElementById("quickClearBtn");
+    if (quickClearBtn) {
+      quickClearBtn.style.display = "none";
+    }
+
     filteredListings = [...gpuListings];
     currentPage = 1;
 
@@ -741,8 +721,21 @@
     );
   }
 
+  // Helper function to detect brand (needed for multiple GPU modal)
+  function detectBrand(model) {
+    if (!model) return "Unknown";
+    const modelUpper = model.toUpperCase();
+    if (modelUpper.includes("RTX") || modelUpper.includes("GTX"))
+      return "NVIDIA";
+    if (modelUpper.includes("RX") || modelUpper.includes("RADEON"))
+      return "AMD";
+    if (modelUpper.includes("ARC")) return "Intel";
+    return "Unknown";
+  }
+
   // Global functions
   window.startGPUScan = startGPUScan;
+  window.detectBrand = detectBrand;
 
   window.refreshListings = function () {
     console.log("Refreshing listings...");
@@ -761,6 +754,11 @@
     console.log("Filtering by model:", model);
     currentFilter = model;
     document.getElementById("modelFilter").value = model;
+
+    // Show filters section if hidden
+    const filtersSection = document.getElementById("filtersSection");
+    filtersSection.style.display = "grid";
+
     applyFilters();
   };
 
@@ -780,64 +778,151 @@
 
     console.log("Viewing GPU details:", gpu);
 
-    // Create detailed modal content
-    const modalContent = `
-      <div style="text-align: left;">
-        <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Model:</strong> 
-          <span style="color: #fff; font-size: 1.2rem;">${escapeHtml(gpu.model)}</span>
-        </div>
-        <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Brand:</strong> 
-          <span style="color: #ccc;">${escapeHtml(gpu.brand)}</span>
-        </div>
-        <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Price:</strong> 
-          <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
-            ${gpu.price}${escapeHtml(gpu.currency)}
-          </span>
-        </div>
-        <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Location:</strong> 
-          <span style="color: #ccc;">${escapeHtml(gpu.location || "Not specified")}</span>
-        </div>
-        <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Seller:</strong> 
-          <span style="color: #ccc;">${escapeHtml(gpu.author)}</span>
-        </div>
-        <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Title:</strong> 
-          <div style="color: #ccc; margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 5px;">
-            ${escapeHtml(gpu.title)}
+    let modalContent;
+
+    // Handle Multiple GPUs case
+    if (gpu.model === "Multiple" && gpu.multiple_gpus) {
+      modalContent = `
+        <div style="text-align: left;">
+          <div style="margin-bottom: 1.5rem; text-align: center;">
+            <h3 style="color: #f59e0b;">Multiple GPUs Found (${gpu.gpu_count})</h3>
+            <p style="color: #aaa;">This listing contains multiple graphics cards</p>
+          </div>
+          
+          <div style="margin-bottom: 1.5rem;">
+            <strong style="color: #3b82f6;">Average Price:</strong> 
+            <span style="color: #10b981; font-size: 1.2rem; font-weight: bold;">
+              ${gpu.price}${escapeHtml(gpu.currency)}
+            </span>
+          </div>
+
+          <div style="margin-bottom: 1.5rem;">
+            <strong style="color: #3b82f6;">GPUs in this listing:</strong>
+            <div style="margin-top: 0.75rem; max-height: 300px; overflow-y: auto;">
+              ${gpu.multiple_gpus
+                .map(
+                  (gpuItem, index) => `
+                <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 8px; border-left: 3px solid #3b82f6;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <div style="color: #fff; font-weight: 600; font-size: 1.1rem;">${escapeHtml(gpuItem.model)}</div>
+                      <div style="color: #aaa; font-size: 0.9rem;">Brand: ${escapeHtml(detectBrand(gpuItem.model))}</div>
+                    </div>
+                    <div style="text-align: right;">
+                      <div style="color: #10b981; font-weight: bold; font-size: 1.1rem;">
+                        ${gpuItem.price}${escapeHtml(gpuItem.currency)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Location:</strong> 
+            <span style="color: #ccc;">${escapeHtml(gpu.location || "Not specified")}</span>
+          </div>
+          
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Seller:</strong> 
+            <span style="color: #ccc;">${escapeHtml(gpu.author)}</span>
+          </div>
+          
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Title:</strong> 
+            <div style="color: #ccc; margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 5px;">
+              ${escapeHtml(gpu.title)}
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Posted:</strong> 
+            <span style="color: #ccc;">${new Date(gpu.scraped_at).toLocaleString()}</span>
+          </div>
+          
+          <div style="margin-top: 1.5rem; text-align: center;">
+            <a href="${gpu.url}" target="_blank" class="btn btn-primary" style="text-decoration: none; padding: 0.75rem 2rem;">
+              View on Forum →
+            </a>
           </div>
         </div>
-        <div style="margin-bottom: 1rem;">
-          <strong style="color: #3b82f6;">Posted:</strong> 
-          <span style="color: #ccc;">${new Date(gpu.scraped_at).toLocaleString()}</span>
+      `;
+    } else {
+      // Single GPU details
+      modalContent = `
+        <div style="text-align: left;">
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Model:</strong> 
+            <span style="color: #fff; font-size: 1.2rem;">${escapeHtml(gpu.model)}</span>
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Brand:</strong> 
+            <span style="color: #ccc;">${escapeHtml(gpu.brand)}</span>
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Price:</strong> 
+            <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
+              ${gpu.price}${escapeHtml(gpu.currency)}
+            </span>
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Location:</strong> 
+            <span style="color: #ccc;">${escapeHtml(gpu.location || "Not specified")}</span>
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Seller:</strong> 
+            <span style="color: #ccc;">${escapeHtml(gpu.author)}</span>
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Title:</strong> 
+            <div style="color: #ccc; margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 5px;">
+              ${escapeHtml(gpu.title)}
+            </div>
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <strong style="color: #3b82f6;">Posted:</strong> 
+            <span style="color: #ccc;">${new Date(gpu.scraped_at).toLocaleString()}</span>
+          </div>
+          <div style="margin-top: 1.5rem; text-align: center;">
+            <a href="${gpu.url}" target="_blank" class="btn btn-primary" style="text-decoration: none; padding: 0.75rem 2rem;">
+              View on Forum →
+            </a>
+          </div>
         </div>
-        <div style="margin-top: 1.5rem; text-align: center;">
-          <a href="${gpu.url}" target="_blank" class="btn btn-primary" style="text-decoration: none; padding: 0.75rem 2rem;">
-            View on Forum →
-          </a>
-        </div>
-      </div>
-    `;
+      `;
+    }
 
     Modal.show({
       type: "info",
-      title: "GPU Listing Details",
-      message: "", // Will be replaced by custom content
+      title:
+        gpu.model === "Multiple"
+          ? "Multiple GPU Listing Details"
+          : "GPU Listing Details",
+      message: "",
       confirmText: "Close",
       confirmClass: "modal-btn-primary",
       onConfirm: () => {},
     });
 
-    // Replace the modal body with custom content
     setTimeout(() => {
       document.getElementById("modalBody").innerHTML = modalContent;
-      // Hide the cancel button for this info modal
       document.getElementById("modalCancel").style.display = "none";
     }, 10);
+  };
+
+  // Helper function to detect brand (needed for multiple GPU modal)
+  window.detectBrand = function (model) {
+    if (!model) return "Unknown";
+    const modelUpper = model.toUpperCase();
+    if (modelUpper.includes("RTX") || modelUpper.includes("GTX"))
+      return "NVIDIA";
+    if (modelUpper.includes("RX") || modelUpper.includes("RADEON"))
+      return "AMD";
+    if (modelUpper.includes("ARC")) return "Intel";
+    return "Unknown";
   };
 
   window.checkDuplicates = async function () {
@@ -854,7 +939,6 @@
 
       if (result.success) {
         const stats = result.data;
-
         Modal.confirm(
           "Duplicate GPU Listings Found",
           `Total Listings: ${stats.totalListings}\nUnique Listings: ${stats.uniqueListings}\nDuplicate Listings: ${stats.totalDuplicates}\n\nRemove ${stats.totalDuplicates} duplicate listings?`,
@@ -887,7 +971,6 @@
 
       if (result.success) {
         Toast.success("Duplicates Removed", result.message);
-        // Reload listings to show updated data
         await loadListings();
         await loadStats();
       } else {
@@ -922,7 +1005,6 @@
               "Database Cleared",
               "All GPU listings have been removed",
             );
-            // Reload listings (will show empty)
             await loadListings();
             await loadStats();
           } else {

@@ -5,7 +5,7 @@ const crypto = require("crypto");
 // Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_ANON_KEY,
 );
 
 // Encryption class for credentials
@@ -210,19 +210,20 @@ const db = {
   // Run History
   async addRunHistory(userId, runData) {
     // Determine bot type
-    const botType = runData.botType || (runData.gpusFound !== undefined ? 'gpu' : 'forum');
-    
+    const botType =
+      runData.botType || (runData.gpusFound !== undefined ? "gpu" : "forum");
+
     const historyEntry = {
       user_id: userId,
       run_date: runData.date || new Date().toISOString(),
       status: runData.status,
       bot_type: botType,
       duration_seconds: runData.duration || null,
-      error_message: runData.error || null
+      error_message: runData.error || null,
     };
 
     // Add type-specific fields
-    if (botType === 'gpu') {
+    if (botType === "gpu") {
       historyEntry.gpus_found = runData.gpusFound || 0;
       historyEntry.new_gpus = runData.newGPUs || 0;
       historyEntry.duplicates = runData.duplicates || 0;
@@ -252,9 +253,9 @@ const db = {
       .limit(limit);
 
     if (error) throw error;
-    
+
     // Format the data for frontend
-    return (data || []).map(run => ({
+    return (data || []).map((run) => ({
       date: run.run_date,
       status: run.status,
       botType: run.bot_type,
@@ -268,7 +269,7 @@ const db = {
       gpusFound: run.gpus_found,
       newGPUs: run.new_gpus,
       duplicates: run.duplicates,
-      pagesScanned: run.pages_scanned
+      pagesScanned: run.pages_scanned,
     }));
   },
 
@@ -485,7 +486,7 @@ const db = {
     }
 
     console.log(
-      `Updated price history for ${Object.keys(modelStats).length} GPU models`
+      `Updated price history for ${Object.keys(modelStats).length} GPU models`,
     );
   },
 
@@ -531,7 +532,7 @@ const db = {
         `
         *,
         users!inner(username)
-      `
+      `,
       )
       .eq("is_active", true);
 
@@ -549,7 +550,7 @@ const db = {
         .eq("currency", alert.currency)
         .gte(
           "scraped_at",
-          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
         ) // Last 24 hours
         .order("scraped_at", { ascending: false });
 

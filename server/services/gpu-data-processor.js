@@ -1,4 +1,4 @@
-// server/services/gpu-data-processor.js - Fixed version
+// Fixed version with proper clear function
 class GPUDataProcessor {
   constructor(db) {
     this.db = db;
@@ -38,7 +38,7 @@ class GPUDataProcessor {
           user_id: userId,
           brand: listing.brand || this.detectBrand(listing.model),
           source: "forum",
-          location: listing.location || null, // Ensure location is included
+          location: listing.location || null,
         };
 
         // Save to database
@@ -113,19 +113,60 @@ class GPUDataProcessor {
   }
 
   /**
-   * Clear all GPU listings from database (admin function)
+   * Clear all GPU listings from database - FIXED VERSION
    */
   async clearAllListings() {
     try {
-      // Fixed: Use proper Supabase delete syntax
+      console.log("Starting to clear all GPU listings...");
+
+      // First, get count of listings to be deleted
+      const { count, error: countError } = await this.db.supabase
+        .from("gpu_listings")
+        .select("*", { count: "exact", head: true });
+
+      if (countError) {
+        console.error("Error getting count:", countError);
+        throw countError;
+      }
+
+      console.log(`Found ${count} listings to delete`);
+
+      if (count === 0) {
+        console.log("No listings to delete");
+        return true;
+      }
+
+      // Delete all GPU listings using a condition that matches all rows
       const { error } = await this.db.supabase
         .from("gpu_listings")
         .delete()
-        .gte("id", 0); // Delete all records
+        .not("id", "is", null); // This condition matches all rows (id is never null)
 
-      if (error) throw error;
+      if (error) {
+        console.error("Delete error:", error);
+        throw error;
+      }
 
-      console.log("All GPU listings cleared from database");
+      // Also clear price history
+      try {
+        const { error: historyError } = await this.db.supabase
+          .from("gpu_price_history")
+          .delete()
+          .not("id", "is", null);
+
+        if (historyError) {
+          console.warn("Warning: Could not clear price history:", historyError);
+          // Don't throw here as the main operation succeeded
+        } else {
+          console.log("Price history also cleared");
+        }
+      } catch (historyError) {
+        console.warn("Warning: Could not clear price history:", historyError);
+      }
+
+      console.log(
+        `Successfully cleared all GPU listings (${count} records deleted)`,
+      );
       return true;
     } catch (error) {
       console.error("Error clearing listings:", error);
@@ -138,7 +179,6 @@ class GPUDataProcessor {
    */
   async getDuplicateStats() {
     try {
-      // Fixed: Use this.db.supabase instead of undefined supabase
       const { data, error } = await this.db.supabase
         .from("gpu_listings")
         .select("url, model, price, currency, id, scraped_at")
