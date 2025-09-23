@@ -1,4 +1,4 @@
-// public/js/status-enhanced.js - Fixed with proper date handling and success rate
+// public/js/status-enhanced.js - Fixed with proper run history and stats
 (function () {
   "use strict";
 
@@ -16,8 +16,6 @@
     }
 
     const user = Auth.getUser();
-    console.log("User data:", user);
-
     if (!user || !user.username) {
       Auth.logout();
       return;
@@ -28,7 +26,6 @@
 
     // Load data immediately
     loadAllData();
-
     setupEventListeners();
 
     // Auto-refresh every 30 seconds
@@ -45,8 +42,6 @@
   }
 
   function setupUserDisplay(user) {
-    console.log("Setting up user display for:", user.username);
-
     const userNameElement = document.getElementById("userName");
     const userAvatar = document.getElementById("userAvatar");
 
@@ -202,6 +197,8 @@
       console.log("Stats API response:", result);
 
       if (result && result.success && result.data) {
+        // Store run history for modal
+        runHistoryData = result.data.runHistory || [];
         updateStatsDisplay(result.data);
       } else {
         console.error("Stats API call failed:", result);
@@ -214,7 +211,6 @@
   }
 
   function setDefaultStats() {
-    console.log("Setting default stats");
     updateStatsDisplay({
       totalRuns: 0,
       totalPostsUpdated: 0,
@@ -228,9 +224,6 @@
 
   async function loadGPUStats() {
     try {
-      console.log("Loading GPU stats...");
-
-      // Get GPU listings for count
       const listingsResponse = await fetch("/api/gpu/listings?limit=1000", {
         method: "GET",
         headers: {
@@ -240,16 +233,14 @@
       });
 
       const listingsResult = await listingsResponse.json();
-      console.log("GPU listings response:", listingsResult);
-
       let totalListings = 0;
+
       if (listingsResult && listingsResult.success && listingsResult.data) {
         totalListings = Array.isArray(listingsResult.data)
           ? listingsResult.data.length
           : 0;
       }
 
-      // Get model stats
       const statsResponse = await fetch("/api/gpu/stats", {
         method: "GET",
         headers: {
@@ -259,8 +250,6 @@
       });
 
       const statsResult = await statsResponse.json();
-      console.log("GPU stats response:", statsResult);
-
       let uniqueModels = 0;
       let lastScanDate = null;
 
@@ -268,7 +257,6 @@
         const stats = Array.isArray(statsResult.data) ? statsResult.data : [];
         uniqueModels = stats.length;
 
-        // Find latest date from listings
         if (listingsResult.data && listingsResult.data.length > 0) {
           const sortedByDate = listingsResult.data.sort(
             (a, b) => new Date(b.scraped_at) - new Date(a.scraped_at),
@@ -279,7 +267,6 @@
         }
       }
 
-      // Update display
       const totalGPUsElement = document.getElementById("totalGPUsFound");
       const uniqueModelsElement = document.getElementById("uniqueGPUModels");
       const totalScansElement = document.getElementById("totalGPUScans");
@@ -294,9 +281,10 @@
       }
 
       if (totalScansElement) {
-        const estimatedScans =
-          totalListings > 0 ? Math.max(1, Math.ceil(totalListings / 25)) : 0;
-        totalScansElement.textContent = estimatedScans.toString();
+        const gpuScans = runHistoryData.filter(
+          (run) => run.botType === "gpu" || run.gpusFound !== undefined,
+        ).length;
+        totalScansElement.textContent = gpuScans.toString();
       }
 
       if (lastScanElement) {
@@ -307,16 +295,9 @@
             totalListings > 0 ? "Recently" : "Never";
         }
       }
-
-      console.log("GPU stats updated:", {
-        totalListings,
-        uniqueModels,
-        lastScanDate,
-      });
     } catch (error) {
       console.error("Error loading GPU stats:", error);
 
-      // Set defaults on error
       const elements = ["totalGPUsFound", "uniqueGPUModels", "totalGPUScans"];
       elements.forEach((id) => {
         const element = document.getElementById(id);
@@ -330,8 +311,6 @@
 
   async function loadCredentialsStatus() {
     try {
-      console.log("Loading credentials status...");
-
       const response = await fetch("/api/forum-credentials", {
         method: "GET",
         headers: {
@@ -341,7 +320,6 @@
       });
 
       const result = await response.json();
-      console.log("Credentials response:", result);
 
       if (result && result.success && result.data) {
         updateCredentialsDisplay(result.data);
@@ -355,8 +333,6 @@
   }
 
   function updateCredentialsDisplay(data) {
-    console.log("Updating credentials display:", data);
-
     hasForumCredentials = data.hasCredentials === true;
 
     const connectionStatus = document.getElementById("connectionStatus");
@@ -370,7 +346,6 @@
 
         if (data.username) {
           forumUsername = data.username;
-          console.log("Forum username set:", forumUsername);
         }
       } else {
         connectionStatus.className = "status-disconnected";
@@ -379,7 +354,6 @@
       }
     }
 
-    // Update the card background color based on connection status
     if (credentialsCard) {
       if (hasForumCredentials) {
         credentialsCard.style.borderColor = "rgba(16, 185, 129, 0.3)";
@@ -410,15 +384,11 @@
       }
     });
 
-    // Update last run - FIXED date formatting
+    // Update last run
     const lastRunElement = document.getElementById("lastRun");
     if (lastRunElement) {
       if (stats.lastRunDate) {
-        // Make sure we have a valid date
-        const dateStr = stats.lastRunDate;
-        const date = new Date(dateStr);
-
-        // Check if date is valid
+        const date = new Date(stats.lastRunDate);
         if (!isNaN(date.getTime())) {
           lastRunElement.textContent = formatTimeAgo(date);
         } else {
@@ -429,63 +399,53 @@
       }
     }
 
-    // Update last run status
+    // Update last run status (fix the "currently running" issue)
     const lastRunStatusElement = document.getElementById("lastRunStatus");
     if (lastRunStatusElement) {
-      const status = stats.lastRunStatus || "unknown";
-      lastRunStatusElement.textContent = formatStatus(status);
+      // Only show "running" if bot is ACTUALLY running
+      const actualStatus = stats.isRunning
+        ? "running"
+        : stats.lastRunStatus || "unknown";
+      lastRunStatusElement.textContent = formatStatus(actualStatus);
 
-      // Update color based on status
-      if (status === "completed") {
+      if (actualStatus === "completed") {
         lastRunStatusElement.style.color = "#10b981";
-      } else if (status === "error") {
+      } else if (actualStatus === "error") {
         lastRunStatusElement.style.color = "#ef4444";
-      } else if (status === "running") {
+      } else if (actualStatus === "running") {
         lastRunStatusElement.style.color = "#f59e0b";
       } else {
         lastRunStatusElement.style.color = "rgba(255, 255, 255, 0.6)";
       }
     }
 
-    // FIXED: Calculate success rate correctly
+    // Calculate success rate from run history
     const successRateElement = document.getElementById("successRate");
     if (successRateElement) {
-      const totalRuns = updates.totalRuns;
       const runHistory = stats.runHistory || [];
+      const totalRuns = runHistory.length;
 
       if (totalRuns > 0) {
-        // Count only completed runs as successful
         const successfulRuns = runHistory.filter(
           (run) => run.status === "completed",
         ).length;
         const successRate = Math.round((successfulRuns / totalRuns) * 100);
-
-        // Make sure it doesn't exceed 100%
-        const finalRate = Math.min(successRate, 100);
-        successRateElement.textContent = `${finalRate}%`;
+        successRateElement.textContent = `${successRate}%`;
       } else {
         successRateElement.textContent = "0%";
       }
     }
 
-    // Update bot status - make sure it's not stuck on "running"
-    const actuallyRunning =
-      stats.isRunning === true || stats.currentStatus === "running";
-    updateBotStatus(actuallyRunning);
+    // Update bot status
+    updateBotStatus(stats.isRunning === true);
 
     // Update run history
-    const runHistory = stats.runHistory || [];
-    updateRunHistory(runHistory);
-
-    console.log("Stats display updated successfully");
+    updateRunHistory(stats.runHistory || []);
   }
 
   function updateRunHistory(history) {
     const tbody = document.getElementById("historyTableBody");
-    if (!tbody) {
-      console.log("History table body not found");
-      return;
-    }
+    if (!tbody) return;
 
     if (!history || history.length === 0) {
       tbody.innerHTML =
@@ -493,23 +453,14 @@
       return;
     }
 
-    console.log("Updating run history with", history.length, "entries");
-
     tbody.innerHTML = history
       .slice(0, 20)
       .map((run) => {
-        // FIXED: Proper date handling
-        let dateStr = run.date || run.run_date || run.lastRunDate;
-        let displayDate = "Unknown";
+        const date = new Date(run.date || run.run_date);
+        const displayDate = !isNaN(date.getTime())
+          ? date.toLocaleString()
+          : "Unknown";
 
-        if (dateStr) {
-          const date = new Date(dateStr);
-          if (!isNaN(date.getTime())) {
-            displayDate = date.toLocaleString();
-          }
-        }
-
-        // Determine bot type
         const isGPUScan = run.gpusFound !== undefined || run.botType === "gpu";
         const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
         const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
@@ -522,18 +473,16 @@
           : run.commentsAdded || 0;
         const duration = run.duration;
 
-        // Create safe JSON string for onclick
-        const runDataStr = JSON.stringify({
-          ...run,
-          displayDate: displayDate,
-          botType: botType,
-        }).replace(/"/g, "&quot;");
-
+        // Create row with clickable handler
         return `
-        <tr style="cursor: pointer;" onclick="showRunDetails(${runDataStr})">
+        <tr style="cursor: pointer;" onclick="window.showRunDetails('${escapeHtml(
+          run.date || "",
+        )}', '${escapeHtml(botType)}', '${run.status || "unknown"}')">
           <td>${displayDate}</td>
           <td><span class="bot-type-indicator ${botTypeClass}">${botType}</span></td>
-          <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status || "unknown"}</span></td>
+          <td><span class="status-indicator ${getStatusClass(
+            run.status,
+          )}">${run.status || "unknown"}</span></td>
           <td>${postsOrGPUs}</td>
           <td>${commentsOrNew}</td>
           <td>${formatDuration(duration) || "-"}</td>
@@ -541,6 +490,12 @@
       `;
       })
       .join("");
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   function getStatusClass(status) {
@@ -571,7 +526,6 @@
   function formatTimeAgo(date) {
     const dateObj = typeof date === "string" ? new Date(date) : date;
 
-    // Validate date
     if (isNaN(dateObj.getTime())) {
       return "Unknown";
     }
@@ -579,7 +533,6 @@
     const seconds = Math.floor((new Date() - dateObj) / 1000);
 
     if (seconds < 0) {
-      // Future date - shouldn't happen
       return "Future date";
     }
 
@@ -619,7 +572,9 @@
           <label for="modalForumUsername" style="color: #ccc; display: block; margin-bottom: 0.5rem;">
             Forum Username
           </label>
-          <input type="text" id="modalForumUsername" value="${forumUsername || ""}" 
+          <input type="text" id="modalForumUsername" value="${
+            forumUsername || ""
+          }" 
                  style="width: 100%; padding: 0.7rem; background: rgba(0,0,0,0.3); 
                         border: 1px solid #444; border-radius: 8px; color: white;">
         </div>
@@ -763,14 +718,11 @@
     );
   };
 
-  // FIXED: Show run details with proper date handling
-  window.showRunDetails = function (run) {
-    console.log("Showing run details:", run);
-
-    const displayDate = run.displayDate || "Unknown date";
-    const botType = run.botType || "Unknown bot";
-
-    Toast.info("Run Details", `${botType} run from ${displayDate}`);
+  window.showRunDetails = function (date, botType, status) {
+    Toast.info(
+      "Run Details",
+      `${botType} run from ${date} - Status: ${status}`,
+    );
   };
 
   // Initialize

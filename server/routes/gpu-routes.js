@@ -32,7 +32,7 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
       {
         maxPages: 8, // Scan first 3 pages
         maxThreadsPerPage: 29, // Process up to 20 threads per page
-        headless: false, // Set to true for production
+        headless: true, // Set to true for production
       },
     );
 
@@ -209,7 +209,7 @@ app.get("/api/gpu/test-scrape", authenticateToken, async (req, res) => {
       {
         maxPages: 1, // Only first page
         maxThreadsPerPage: 5, // Only 5 threads
-        headless: false,
+        headless: true,
       },
     );
 

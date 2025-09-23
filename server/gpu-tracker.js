@@ -343,7 +343,7 @@ class GPUPriceTracker {
       this.updateCallback("🚀 Starting Enhanced GPU Price Tracker...");
 
       browser = await puppeteer.launch({
-        headless: false,
+        headless: true,
         defaultViewport: null,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
       });
