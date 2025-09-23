@@ -1,4 +1,4 @@
-// server/scrapers/gpu-forum-scraper.js - Fixed version without login requirement
+// server/scrapers/gpu-forum-scraper.js - Enhanced version with category filtering and multiple GPU support
 const puppeteer = require("puppeteer");
 
 class GPUForumScraper {
@@ -10,100 +10,86 @@ class GPUForumScraper {
     this.gpuData = [];
   }
 
-  async scrape(options = {}) {
-    const { maxPages = 20, headless = true } = options;
+  async scrape(username, password, options = {}) {
+    const { maxPages = 20, headless = false } = options; // Changed to false for debugging
 
     try {
-      this.updateCallback("🚀 Starting GPU Forum Scraper (No Login Required)...");
+      this.updateCallback("🚀 Starting GPU Forum Scraper...");
 
       await this.launchBrowser(headless);
-      
-      // Skip login - go directly to the forum
-      this.updateCallback("📄 Going directly to forum listings...");
 
-      // Start from page 1 (start=0)
-      let startOffset = 0;
+      // Login first
+      await this.login(username, password);
+
+      this.updateCallback("📄 Navigating to forum sell section...");
+
+      // Go to the sell section
+      await this.page.goto("https://foorum.hinnavaatlus.ee/viewforum.php?f=3", {
+        waitUntil: "networkidle2",
+        timeout: 30000,
+      });
+
+      // Start scanning pages
       let currentPage = 1;
-      const increment = 25; // Increment by 25 for each page
+      let hasMorePages = true;
 
-      while (currentPage <= maxPages) {
-        this.updateCallback(`📄 Scraping page ${currentPage} (start=${startOffset})...`);
+      while (hasMorePages && currentPage <= maxPages) {
+        this.updateCallback(`📄 Scanning page ${currentPage}...`);
 
-        // Navigate directly to the page with offset
-        const pageUrl = `https://foorum.hinnavaatlus.ee/viewforum.php?f=3&topicdays=0&start=${startOffset}`;
-
-        try {
-          await this.page.goto(pageUrl, {
-            waitUntil: "networkidle2",
-            timeout: 30000,
-          });
-
-          // Wait for content to load
-          await this.page.waitForSelector("table.forumline", {
-            timeout: 10000,
-          });
-        } catch (error) {
-          this.updateCallback(`⚠️ Failed to load page ${currentPage}: ${error.message}`);
-          break;
-        }
-
-        // Get threads with "Videokaardid" category filter
+        // Get all Videokaardid threads on this page
         const videokaardidThreads = await this.getVideokaardidThreads();
 
-        if (videokaardidThreads.length === 0) {
-          this.updateCallback(`📭 No Videokaardid threads found on page ${currentPage}`);
-        } else {
-          this.updateCallback(`🎯 Found ${videokaardidThreads.length} Videokaardid threads on page ${currentPage}`);
+        this.updateCallback(
+          `🎯 Found ${videokaardidThreads.length} Videokaardid threads on page ${currentPage}`,
+        );
 
-          let gpusFoundOnPage = 0;
+        // Process each Videokaardid thread
+        for (let i = 0; i < videokaardidThreads.length; i++) {
+          const thread = videokaardidThreads[i];
 
-          // Process each Videokaardid thread
-          for (const thread of videokaardidThreads) {
-            if (this.processedThreads.has(thread.url)) {
-              continue;
-            }
-
-            try {
-              const found = await this.scrapeThread(thread);
-              if (found) {
-                gpusFoundOnPage++;
-              }
-
-              this.processedThreads.add(thread.url);
-
-              // Small delay between threads
-              await this.page.waitForTimeout(500);
-            } catch (error) {
-              this.updateCallback(`❌ Error processing thread "${thread.title}": ${error.message}`);
-            }
+          if (this.processedThreads.has(thread.url)) {
+            continue;
           }
 
-          this.updateCallback(`✅ Page ${currentPage}: Found ${gpusFoundOnPage} GPU listings`);
+          this.updateCallback(
+            `🔍 Processing thread ${i + 1}/${videokaardidThreads.length}: ${thread.title.substring(0, 40)}...`,
+          );
+
+          try {
+            const found = await this.scrapeThread(thread);
+            if (found) {
+              this.updateCallback(
+                `✅ Found GPU(s) in: ${thread.title.substring(0, 30)}...`,
+              );
+            }
+
+            this.processedThreads.add(thread.url);
+
+            // Small delay between threads
+            await this.page.waitForTimeout(1000);
+          } catch (error) {
+            this.updateCallback(`⚠️ Error in thread: ${error.message}`);
+          }
         }
 
-        // Check if we should continue
-        const allThreadsOnPage = await this.getAllThreadsCount();
-        if (allThreadsOnPage < 25) {
-          this.updateCallback(`📄 Page ${currentPage} has fewer threads, likely the last page`);
-          break;
+        // Try to go to next page
+        hasMorePages = await this.goToNextPage();
+        if (hasMorePages) {
+          currentPage++;
+          await this.page.waitForTimeout(2000); // Wait before processing next page
         }
-
-        // Move to next page
-        currentPage++;
-        startOffset += increment; // Increment by 25
-
-        // Brief pause between pages
-        await this.page.waitForTimeout(1000);
       }
 
-      this.updateCallback(`🏁 Scraping complete! Found ${this.gpuData.length} GPU listings`);
+      this.updateCallback(
+        `🏁 Scraping complete! Found ${this.gpuData.length} GPU listings across ${currentPage} pages`,
+      );
 
       return {
         success: true,
         data: this.gpuData,
         totalListings: this.gpuData.length,
         processedThreads: this.processedThreads.size,
-        processedPages: currentPage
+        processedPages: currentPage,
       };
     } catch (error) {
       this.updateCallback(`❌ Scraper error: ${error.message}`);
@@ -111,7 +97,7 @@ class GPUForumScraper {
         success: false,
         error: error.message,
         data: this.gpuData,
-        partialResults: this.gpuData.length > 0
+        partialResults: this.gpuData.length > 0,
       };
     } finally {
       await this.cleanup();
@@ -129,50 +115,104 @@ class GPUForumScraper {
     this.page.setDefaultTimeout(30000);
   }
 
+  async login(username, password) {
+    this.updateCallback("🔐 Logging in to forum...");
+
+    await this.page.goto("https://auth.hinnavaatlus.ee/ui/login", {
+      waitUntil: "networkidle2",
+      timeout: 30000,
+    });
+
+    await this.page.waitForSelector('input[name="identifier"]', {
+      timeout: 10000,
+    });
+    await this.page.type('input[name="identifier"]', username);
+    await this.page.waitForSelector("input[name=password]", {
+      timeout: 10000,
+    });
+    await this.page.type('input[name="password"]', password);
+
+    await this.page.waitForSelector(
+      'body > div > section > div > div > div > form:nth-child(5) > button[type="submit"]',
+    );
+    await this.page.click(
+      'body > div > section > div > div > div > form:nth-child(5) > button[type="submit"]',
+    );
+
+    await this.page.waitForNavigation({
+      waitUntil: "networkidle2",
+      timeout: 30000,
+    });
+
+    const currentUrl = this.page.url();
+    if (currentUrl.includes("login")) {
+      throw new Error("Login failed - still on login page");
+    }
+
+    this.updateCallback("✅ Login successful!");
+  }
+
   async getVideokaardidThreads() {
+    // Extract threads marked as Videokaardid from the current page
     return await this.page.evaluate(() => {
       const threads = [];
+
+      // Get all forum rows
       const rows = document.querySelectorAll("table.forumline tbody tr");
 
-      for (let i = 0; i < rows.length; i++) {
+      for (let i = 3; i < rows.length; i++) {
+        // Skip header rows
         const row = rows[i];
 
         try {
-          // Look for the category span (Videokaardid)
-          const categorySpan = row.querySelector("td:nth-child(2) span.topictitle a span:nth-child(2)");
+          // Look for the category indicator
+          const categoryElements = row.querySelectorAll("span.topictitle span");
+          let isVideokaardid = false;
 
-          if (categorySpan && categorySpan.textContent.trim() === "Videokaardid") {
-            const threadLink = row.querySelector("td:nth-child(2) span.topictitle a");
+          for (const elem of categoryElements) {
+            if (elem.textContent.trim() === "Videokaardid") {
+              isVideokaardid = true;
+              break;
+            }
+          }
+
+          if (isVideokaardid) {
+            // Get the thread link
+            const threadLink = row.querySelector("span.topictitle a");
 
             if (threadLink && threadLink.href) {
               const title = threadLink.textContent.trim();
               const url = threadLink.href;
 
-              // Get location
+              // Get location if available
               let location = null;
-              const locationSpan = row.querySelector("td:nth-child(2) span.topictitle a span:nth-child(3)");
-              if (locationSpan) {
-                const locationText = locationSpan.textContent.trim();
-                if (locationText && !locationText.includes("Videokaardid")) {
-                  location = locationText.replace(/^Asukoht:?\s*/i, "").trim();
+              const locationElements = row.querySelectorAll(
+                "span.topictitle span",
+              );
+              for (const elem of locationElements) {
+                const text = elem.textContent.trim();
+                if (text && !text.includes("Videokaardid") && text.length > 2) {
+                  location = text.replace(/^Asukoht:?\s*/i, "").trim();
+                  break;
                 }
               }
 
               // Get author
               let author = "Unknown";
-              const authorLink = row.querySelector('a[href*="profile.php"]') ||
-                                row.querySelector(".username") ||
-                                row.querySelector("span.name a");
-              if (authorLink) {
-                author = authorLink.textContent.trim();
+              const authorCell = row.cells[3]; // Usually the 4th cell
+              if (authorCell) {
+                const authorLink = authorCell.querySelector("a");
+                if (authorLink) {
+                  author = authorLink.textContent.trim();
+                }
               }
 
               threads.push({
                 title,
                 url,
                 author,
-                location: location || null,
-                category: "Videokaardid"
+                location,
+                category: "Videokaardid",
               });
             }
           }
@@ -185,56 +225,90 @@ class GPUForumScraper {
     });
   }
 
-  async getAllThreadsCount() {
-    return await this.page.evaluate(() => {
-      const rows = document.querySelectorAll("table.forumline tbody tr");
-      let threadCount = 0;
-      for (let i = 3; i < rows.length; i++) {
-        const row = rows[i];
-        const titleLink = row.querySelector('a[href*="viewtopic.php"]');
-        if (titleLink) {
-          threadCount++;
+  async goToNextPage() {
+    try {
+      // Look for next page link
+      const hasNextPage = await this.page.evaluate(() => {
+        const nextLinks = document.querySelectorAll(
+          'a[title="Järgmine lehekülg"], a.nav:contains("Järgmine")',
+        );
+        for (const link of nextLinks) {
+          if (link && !link.classList.contains("disabled")) {
+            link.click();
+            return true;
+          }
         }
+
+        // Alternative: look for numbered page links
+        const pageLinks = document.querySelectorAll("span.gensmall b a");
+        for (const link of pageLinks) {
+          const pageNum = parseInt(link.textContent);
+          if (!isNaN(pageNum) && link.parentElement.nextElementSibling) {
+            const nextLink =
+              link.parentElement.nextElementSibling.querySelector("a");
+            if (nextLink) {
+              nextLink.click();
+              return true;
+            }
+          }
+        }
+
+        return false;
+      });
+
+      if (hasNextPage) {
+        await this.page.waitForNavigation({
+          waitUntil: "networkidle2",
+          timeout: 30000,
+        });
+        return true;
       }
-      return threadCount;
-    });
+
+      return false;
+    } catch (error) {
+      this.updateCallback("No more pages available");
+      return false;
+    }
   }
 
   async scrapeThread(thread) {
     try {
-      this.updateCallback(`🔍 Processing: ${thread.title.substring(0, 50)}...`);
-
-      // Navigate to thread
+      // Navigate to the thread
       await this.page.goto(thread.url, {
         waitUntil: "networkidle2",
         timeout: 20000,
       });
 
+      // Extract thread content
       const threadData = await this.extractThreadData();
       const fullText = `${thread.title} ${threadData.content}`;
 
-      // Extract all GPUs and their prices from the thread
+      // Extract GPUs and prices
       const gpuListings = this.extractAllGPUs(fullText);
 
-      // Use location from thread listing if available
+      if (gpuListings.length === 0) {
+        return false;
+      }
+
+      // Use location from thread or try to extract from content
       let location = thread.location;
       if (!location) {
         location = this.extractLocation(fullText);
       }
 
-      if (gpuListings.length === 0) {
-        this.updateCallback(`⚠️ No GPUs found in: ${thread.title.substring(0, 30)}...`);
-        return false;
-      }
-
-      // Handle multiple GPUs case
+      // Save GPU data
       if (gpuListings.length > 1) {
-        // Create a single "Multiple GPUs" entry
-        const gpuEntry = {
+        // Multiple GPUs in one listing
+        const avgPrice = Math.round(
+          gpuListings.reduce((sum, gpu) => sum + gpu.price, 0) /
+            gpuListings.length,
+        );
+
+        this.gpuData.push({
           id: this.generateId(thread.url) + "_multiple",
           model: "Multiple",
           brand: "Multiple",
-          price: this.calculateAveragePrice(gpuListings),
+          price: avgPrice,
           currency: gpuListings[0].currency,
           title: thread.title,
           url: thread.url,
@@ -242,29 +316,32 @@ class GPUForumScraper {
           location: location,
           scraped_at: new Date().toISOString(),
           multiple_gpus: gpuListings,
-          gpu_count: gpuListings.length
-        };
+          gpu_count: gpuListings.length,
+        });
 
-        this.gpuData.push(gpuEntry);
-        this.updateCallback(`✅ Found Multiple GPUs (${gpuListings.length}): ${gpuListings.map(g => g.model).join(", ")}`);
+        this.updateCallback(
+          `✅ Found ${gpuListings.length} GPUs: ${gpuListings.map((g) => g.model).join(", ")}`,
+        );
       } else {
         // Single GPU
-        const listing = gpuListings[0];
-        const gpuEntry = {
+        const gpu = gpuListings[0];
+
+        this.gpuData.push({
           id: this.generateId(thread.url),
-          model: listing.model,
-          brand: this.detectBrand(listing.model),
-          price: listing.price,
-          currency: listing.currency,
+          model: gpu.model,
+          brand: this.detectBrand(gpu.model),
+          price: gpu.price,
+          currency: gpu.currency,
           title: thread.title,
           url: thread.url,
           author: thread.author,
           location: location,
-          scraped_at: new Date().toISOString()
-        };
+          scraped_at: new Date().toISOString(),
+        });
 
-        this.gpuData.push(gpuEntry);
-        this.updateCallback(`✅ Found: ${listing.model} - ${listing.price}${listing.currency}`);
+        this.updateCallback(
+          `✅ Found: ${gpu.model} - ${gpu.price}${gpu.currency}`,
+        );
       }
 
       return true;
@@ -275,33 +352,56 @@ class GPUForumScraper {
   }
 
   calculateAveragePrice(gpuListings) {
-    const prices = gpuListings.map(gpu => gpu.price);
-    return Math.round(prices.reduce((sum, price) => sum + price, 0) / prices.length);
+    const prices = gpuListings.map((gpu) => gpu.price);
+    return Math.round(
+      prices.reduce((sum, price) => sum + price, 0) / prices.length,
+    );
   }
 
   extractAllGPUs(text) {
     const gpuListings = [];
     const upperText = text.toUpperCase();
 
-    // Enhanced GPU patterns
+    // Enhanced GPU patterns for better detection
     const patterns = [
+      // NVIDIA RTX 40xx series
       /RTX\s*40[5-9]0\s*(TI|SUPER)?/gi,
       /RTX\s*4060\s*(TI)?/gi,
       /RTX\s*4070\s*(TI|SUPER)?/gi,
       /RTX\s*4080\s*(SUPER)?/gi,
       /RTX\s*4090/gi,
+
+      // NVIDIA RTX 30xx series
       /RTX\s*30[5-9]0\s*(TI)?/gi,
       /RTX\s*3060\s*(TI)?/gi,
       /RTX\s*3070\s*(TI)?/gi,
       /RTX\s*3080\s*(TI)?/gi,
       /RTX\s*3090\s*(TI)?/gi,
+
+      // NVIDIA RTX 20xx series
       /RTX\s*20[6-8]0\s*(SUPER)?/gi,
+
+      // NVIDIA GTX series
       /GTX\s*16[5-6]0\s*(TI|SUPER)?/gi,
       /GTX\s*10[5-8]0\s*(TI)?/gi,
+      /GTX\s*9[6-8]0/gi,
+
+      // AMD RX 7000 series
       /RX\s*7[0-9]00\s*(XT|XTX)?/gi,
+
+      // AMD RX 6000 series
       /RX\s*6[0-9]00\s*(XT|XTX)?/gi,
+
+      // AMD RX 5000 series
       /RX\s*5[0-9]00\s*(XT)?/gi,
-      /ARC\s*A[0-9]{3,4}/gi
+
+      // Intel Arc
+      /ARC\s*A[0-9]{3,4}/gi,
+
+      // Generic patterns
+      /RTX\s*\d{4}\s*(TI|SUPER|XTX)?/gi,
+      /GTX\s*\d{4}\s*(TI|SUPER)?/gi,
+      /RX\s*\d{4}\s*(XT|XTX)?/gi,
     ];
 
     // Find all unique GPU models
@@ -309,51 +409,49 @@ class GPUForumScraper {
     for (const pattern of patterns) {
       const matches = text.match(pattern);
       if (matches) {
-        matches.forEach(match => {
+        matches.forEach((match) => {
           const normalized = match.trim().replace(/\s+/g, " ").toUpperCase();
           foundGPUs.add(normalized);
         });
       }
     }
 
-    // Extract prices
+    // Extract prices for each GPU
     const prices = this.extractAllPrices(text);
 
-    if (foundGPUs.size === 0) {
+    if (foundGPUs.size === 0 || prices.length === 0) {
       return [];
     }
 
-    // Match GPUs with prices
-    if (foundGPUs.size > 1 && prices.length > 1) {
-      const gpuArray = Array.from(foundGPUs);
+    const gpuArray = Array.from(foundGPUs);
 
-      for (let i = 0; i < gpuArray.length && i < prices.length; i++) {
+    // If we have multiple GPUs and multiple prices, try to match them
+    if (gpuArray.length === 1 && prices.length >= 1) {
+      // Single GPU, take first valid price
+      gpuListings.push({
+        model: gpuArray[0],
+        price: prices[0].price,
+        currency: prices[0].currency,
+      });
+    } else if (gpuArray.length > 1 && prices.length >= gpuArray.length) {
+      // Multiple GPUs with enough prices
+      for (let i = 0; i < gpuArray.length; i++) {
         gpuListings.push({
           model: gpuArray[i],
           price: prices[i].price,
-          currency: prices[i].currency
+          currency: prices[i].currency,
         });
       }
-
-      // If more GPUs than prices, use first price for remaining
-      if (gpuArray.length > prices.length) {
-        for (let i = prices.length; i < gpuArray.length; i++) {
-          gpuListings.push({
-            model: gpuArray[i],
-            price: prices[0].price,
-            currency: prices[0].currency
-          });
-        }
-      }
-    } else if (foundGPUs.size >= 1 && prices.length >= 1) {
-      const gpu = Array.from(foundGPUs)[0];
+    } else if (gpuArray.length > 1 && prices.length > 0) {
+      // Multiple GPUs but fewer prices - use first price for all
       const price = prices[0];
-
-      gpuListings.push({
-        model: gpu,
-        price: price.price,
-        currency: price.currency
-      });
+      for (const gpu of gpuArray) {
+        gpuListings.push({
+          model: gpu,
+          price: price.price,
+          currency: price.currency,
+        });
+      }
     }
 
     return gpuListings;
@@ -362,13 +460,14 @@ class GPUForumScraper {
   extractAllPrices(text) {
     const prices = [];
     const patterns = [
+      { regex: /MÜÜK[:\s]*(\d+)/gi, currency: "€" },
       { regex: /AH[:\s]*(\d+)/gi, currency: "AH" },
       { regex: /OK[:\s]*(\d+)/gi, currency: "OK" },
       { regex: /€\s*(\d+(?:[,\.]\d{1,2})?)/g, currency: "€" },
       { regex: /(\d+(?:[,\.]\d{1,2})?)\s*€/g, currency: "€" },
       { regex: /(\d+(?:[,\.]\d{1,2})?)\s*EUR/gi, currency: "€" },
       { regex: /HIND[:\s]*(\d+)/gi, currency: "€" },
-      { regex: /(\d{2,4})\s*eurot?/gi, currency: "€" }
+      { regex: /(\d{2,4})\s*eurot?/gi, currency: "€" },
     ];
 
     for (const pattern of patterns) {
@@ -376,20 +475,27 @@ class GPUForumScraper {
       for (const match of matches) {
         let price = parseFloat(match[1].replace(",", "."));
 
-        // Validate price range
+        // Validate price range (GPUs typically 50-5000)
         if (!isNaN(price) && price >= 50 && price <= 5000) {
           prices.push({
             price: Math.round(price),
-            currency: pattern.currency
+            currency: pattern.currency,
           });
         }
       }
     }
 
-    // Remove duplicates
-    const uniquePrices = prices.filter((price, index, self) =>
-      index === self.findIndex(p => p.price === price.price && p.currency === price.currency)
-    );
+    // Remove duplicate prices (same price and currency)
+    const uniquePrices = [];
+    const seen = new Set();
+
+    for (const price of prices) {
+      const key = `${price.price}-${price.currency}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniquePrices.push(price);
+      }
+    }
 
     return uniquePrices;
   }
@@ -401,17 +507,46 @@ class GPUForumScraper {
 
     // Estonian city names
     const cities = [
-      "TALLINN", "TARTU", "NARVA", "PÄRNU", "KOHTLA-JÄRVE",
-      "VILJANDI", "RAKVERE", "MAARDU", "KURESSAARE", "SILLAMÄE",
-      "VALGA", "VÕRU", "JÕHVI", "KEILA", "HAAPSALU",
-      "PAIDE", "ELVA", "SAUE", "PÕLVA", "TAPA"
+      "TALLINN",
+      "TARTU",
+      "NARVA",
+      "PÄRNU",
+      "KOHTLA-JÄRVE",
+      "VILJANDI",
+      "RAKVERE",
+      "MAARDU",
+      "KURESSAARE",
+      "SILLAMÄE",
+      "VALGA",
+      "VÕRU",
+      "JÕHVI",
+      "KEILA",
+      "HAAPSALU",
+      "PAIDE",
+      "ELVA",
+      "SAUE",
+      "PÕLVA",
+      "TAPA",
+      "JÕGEVA",
+      "RAPLA",
+      "KIVIÕLI",
+      "TÜRI",
+      "PÕLTSAMAA",
+      "KADRINA",
+      "SINDI",
+      "PALDISKI",
+      "KUNDA",
+      "TÕRVA",
     ];
 
-    // Check for location keywords
+    // Check for location keywords with patterns
     const locationPatterns = [
       /ASUKOHT[:\s]*([A-ZÄÖÜÕ\s,]+)/,
       /KOHT[:\s]*([A-ZÄÖÜÕ\s,]+)/,
-      /LINN[:\s]*([A-ZÄÖÜÕ\s,]+)/
+      /LINN[:\s]*([A-ZÄÖÜÕ\s,]+)/,
+      /LOCATION[:\s]*([A-Z\s,]+)/,
+      /SAAB KÄTTE[:\s]*([A-ZÄÖÜÕ\s,]+)/,
+      /ASUB[:\s]*([A-ZÄÖÜÕ\s,]+)/,
     ];
 
     // Try patterns first
@@ -440,15 +575,17 @@ class GPUForumScraper {
 
   async extractThreadData() {
     return await this.page.evaluate(() => {
-      const contentSelectors = [
+      const selectors = [
         ".postbody",
         'td.row1[valign="top"] span.postbody',
+        'td[validgn="top] span.postbody',
         ".post-content",
-        "table.forumline td span.postbody"
+        "table.forumline td span.postbody",
       ];
 
       let content = "";
-      for (const selector of contentSelectors) {
+
+      for (const selector of selectors) {
         const elements = document.querySelectorAll(selector);
         if (elements.length > 0) {
           content = elements[0].textContent || elements[0].innerText || "";
@@ -458,7 +595,7 @@ class GPUForumScraper {
 
       return {
         content: content.trim(),
-        title: document.title
+        title: document.title,
       };
     });
   }

@@ -1,4 +1,4 @@
-// public/js/status.js - Complete fixed version with proper data extraction
+// public/js/status-enhanced.js - Fixed with proper date handling and success rate
 (function () {
   "use strict";
 
@@ -16,6 +16,8 @@
     }
 
     const user = Auth.getUser();
+    console.log("User data:", user);
+
     if (!user || !user.username) {
       Auth.logout();
       return;
@@ -25,20 +27,26 @@
     WS.init(handleWebSocketMessage);
 
     // Load data immediately
-    refreshStats();
-    loadCredentialsStatus();
-    loadGPUStats();
+    loadAllData();
 
     setupEventListeners();
 
     // Auto-refresh every 30 seconds
     setInterval(() => {
-      refreshStats();
-      loadGPUStats();
+      loadAllData();
     }, 30000);
   }
 
+  function loadAllData() {
+    console.log("Loading all status data...");
+    refreshStats();
+    loadCredentialsStatus();
+    loadGPUStats();
+  }
+
   function setupUserDisplay(user) {
+    console.log("Setting up user display for:", user.username);
+
     const userNameElement = document.getElementById("userName");
     const userAvatar = document.getElementById("userAvatar");
 
@@ -69,7 +77,10 @@
     switch (message.type) {
       case "botStarted":
         updateBotStatus(true);
-        addLogEntry("Forum Bot started: " + new Date().toLocaleString(), "info");
+        addLogEntry(
+          "Forum Bot started: " + new Date().toLocaleString(),
+          "info",
+        );
         document.getElementById("emergencyStop").disabled = false;
         Toast.info("Bot Started", "Forum bot is now running");
         break;
@@ -84,22 +95,34 @@
         break;
 
       case "gpuScanCompleted":
-        addLogEntry(`GPU Scan completed: Found ${message.data.totalFound || 0} listings`, "info");
+        addLogEntry(
+          `GPU Scan completed: Found ${message.data.totalFound || 0} listings`,
+          "info",
+        );
         setTimeout(() => {
           loadGPUStats();
           refreshStats();
         }, 1000);
-        Toast.success("GPU Scan Complete", `Found ${message.data.totalFound || 0} listings`);
+        Toast.success(
+          "GPU Scan Complete",
+          `Found ${message.data.totalFound || 0} listings`,
+        );
         break;
 
       case "botCompleted":
         updateBotStatus(false);
-        addLogEntry(`Forum Bot completed: ${message.data.postsUpdated} posts, ${message.data.commentsAdded} comments`, "info");
+        addLogEntry(
+          `Forum Bot completed: ${message.data.postsUpdated} posts, ${message.data.commentsAdded} comments`,
+          "info",
+        );
         document.getElementById("emergencyStop").disabled = true;
         setTimeout(() => {
           refreshStats();
         }, 1000);
-        Toast.success("Bot Completed", `Updated ${message.data.postsUpdated} posts`);
+        Toast.success(
+          "Bot Completed",
+          `Updated ${message.data.postsUpdated} posts`,
+        );
         break;
 
       case "botStopped":
@@ -165,18 +188,23 @@
 
   async function refreshStats() {
     try {
-      console.log("Loading stats...");
+      console.log("Loading stats from API...");
 
-      const response = await API.get("/api/stats");
-      console.log("Raw stats response:", response);
+      const response = await fetch("/api/stats", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-      if (response && response.success && response.data) {
-        // Extract the actual data
-        const statsData = response.data;
-        console.log("Extracted stats data:", statsData);
-        updateStatsDisplay(statsData);
+      const result = await response.json();
+      console.log("Stats API response:", result);
+
+      if (result && result.success && result.data) {
+        updateStatsDisplay(result.data);
       } else {
-        console.error("Stats API call failed:", response);
+        console.error("Stats API call failed:", result);
         setDefaultStats();
       }
     } catch (error) {
@@ -194,7 +222,7 @@
       lastRunDate: null,
       lastRunStatus: "never_run",
       runHistory: [],
-      isRunning: false
+      isRunning: false,
     });
   }
 
@@ -203,29 +231,47 @@
       console.log("Loading GPU stats...");
 
       // Get GPU listings for count
-      const listingsResponse = await API.get("/api/gpu/listings?limit=1000");
-      console.log("GPU listings response:", listingsResponse);
+      const listingsResponse = await fetch("/api/gpu/listings?limit=1000", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const listingsResult = await listingsResponse.json();
+      console.log("GPU listings response:", listingsResult);
 
       let totalListings = 0;
-      if (listingsResponse && listingsResponse.success && listingsResponse.data) {
-        totalListings = Array.isArray(listingsResponse.data) ? listingsResponse.data.length : 0;
+      if (listingsResult && listingsResult.success && listingsResult.data) {
+        totalListings = Array.isArray(listingsResult.data)
+          ? listingsResult.data.length
+          : 0;
       }
 
       // Get model stats
-      const statsResponse = await API.get("/api/gpu/stats");
-      console.log("GPU stats response:", statsResponse);
+      const statsResponse = await fetch("/api/gpu/stats", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const statsResult = await statsResponse.json();
+      console.log("GPU stats response:", statsResult);
 
       let uniqueModels = 0;
       let lastScanDate = null;
 
-      if (statsResponse && statsResponse.success && statsResponse.data) {
-        const stats = Array.isArray(statsResponse.data) ? statsResponse.data : [];
+      if (statsResult && statsResult.success && statsResult.data) {
+        const stats = Array.isArray(statsResult.data) ? statsResult.data : [];
         uniqueModels = stats.length;
 
         // Find latest date from listings
-        if (listingsResponse.data && listingsResponse.data.length > 0) {
-          const sortedByDate = listingsResponse.data.sort((a, b) => 
-            new Date(b.scraped_at) - new Date(a.scraped_at)
+        if (listingsResult.data && listingsResult.data.length > 0) {
+          const sortedByDate = listingsResult.data.sort(
+            (a, b) => new Date(b.scraped_at) - new Date(a.scraped_at),
           );
           if (sortedByDate[0].scraped_at) {
             lastScanDate = new Date(sortedByDate[0].scraped_at);
@@ -248,8 +294,8 @@
       }
 
       if (totalScansElement) {
-        // Estimate scans based on listings
-        const estimatedScans = totalListings > 0 ? Math.max(1, Math.ceil(totalListings / 25)) : 0;
+        const estimatedScans =
+          totalListings > 0 ? Math.max(1, Math.ceil(totalListings / 25)) : 0;
         totalScansElement.textContent = estimatedScans.toString();
       }
 
@@ -257,17 +303,22 @@
         if (lastScanDate) {
           lastScanElement.textContent = formatTimeAgo(lastScanDate);
         } else {
-          lastScanElement.textContent = totalListings > 0 ? "Recently" : "Never";
+          lastScanElement.textContent =
+            totalListings > 0 ? "Recently" : "Never";
         }
       }
 
-      console.log("GPU stats updated:", { totalListings, uniqueModels, lastScanDate });
+      console.log("GPU stats updated:", {
+        totalListings,
+        uniqueModels,
+        lastScanDate,
+      });
     } catch (error) {
       console.error("Error loading GPU stats:", error);
 
       // Set defaults on error
       const elements = ["totalGPUsFound", "uniqueGPUModels", "totalGPUScans"];
-      elements.forEach(id => {
+      elements.forEach((id) => {
         const element = document.getElementById(id);
         if (element) element.textContent = "0";
       });
@@ -281,7 +332,15 @@
     try {
       console.log("Loading credentials status...");
 
-      const result = await API.get("/api/forum-credentials");
+      const response = await fetch("/api/forum-credentials", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
       console.log("Credentials response:", result);
 
       if (result && result.success && result.data) {
@@ -296,21 +355,40 @@
   }
 
   function updateCredentialsDisplay(data) {
+    console.log("Updating credentials display:", data);
+
     hasForumCredentials = data.hasCredentials === true;
 
     const connectionStatus = document.getElementById("connectionStatus");
+    const credentialsCard = document.getElementById("credentialsStatusCard");
 
     if (connectionStatus) {
       if (hasForumCredentials) {
         connectionStatus.className = "status-connected";
-        connectionStatus.innerHTML = '<span class="status-dot"></span><span>Connected to Forum</span>';
+        connectionStatus.innerHTML =
+          '<span class="status-dot"></span><span>Connected to Forum</span>';
 
         if (data.username) {
           forumUsername = data.username;
+          console.log("Forum username set:", forumUsername);
         }
       } else {
         connectionStatus.className = "status-disconnected";
-        connectionStatus.innerHTML = '<span class="status-dot" style="background: #ef4444;"></span><span>Not Connected</span>';
+        connectionStatus.innerHTML =
+          '<span class="status-dot" style="background: #ef4444;"></span><span>Not Connected</span>';
+      }
+    }
+
+    // Update the card background color based on connection status
+    if (credentialsCard) {
+      if (hasForumCredentials) {
+        credentialsCard.style.borderColor = "rgba(16, 185, 129, 0.3)";
+        credentialsCard.style.background =
+          "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%)";
+      } else {
+        credentialsCard.style.borderColor = "rgba(239, 68, 68, 0.3)";
+        credentialsCard.style.background =
+          "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%)";
       }
     }
   }
@@ -322,7 +400,7 @@
     const updates = {
       totalRuns: stats.totalRuns || 0,
       postsUpdated: stats.totalPostsUpdated || 0,
-      commentsAdded: stats.totalCommentsAdded || 0
+      commentsAdded: stats.totalCommentsAdded || 0,
     };
 
     Object.entries(updates).forEach(([id, value]) => {
@@ -332,10 +410,23 @@
       }
     });
 
-    // Update last run
+    // Update last run - FIXED date formatting
     const lastRunElement = document.getElementById("lastRun");
     if (lastRunElement) {
-      lastRunElement.textContent = stats.lastRunDate ? formatTimeAgo(stats.lastRunDate) : "Never";
+      if (stats.lastRunDate) {
+        // Make sure we have a valid date
+        const dateStr = stats.lastRunDate;
+        const date = new Date(dateStr);
+
+        // Check if date is valid
+        if (!isNaN(date.getTime())) {
+          lastRunElement.textContent = formatTimeAgo(date);
+        } else {
+          lastRunElement.textContent = "Never";
+        }
+      } else {
+        lastRunElement.textContent = "Never";
+      }
     }
 
     // Update last run status
@@ -343,20 +434,44 @@
     if (lastRunStatusElement) {
       const status = stats.lastRunStatus || "unknown";
       lastRunStatusElement.textContent = formatStatus(status);
+
+      // Update color based on status
+      if (status === "completed") {
+        lastRunStatusElement.style.color = "#10b981";
+      } else if (status === "error") {
+        lastRunStatusElement.style.color = "#ef4444";
+      } else if (status === "running") {
+        lastRunStatusElement.style.color = "#f59e0b";
+      } else {
+        lastRunStatusElement.style.color = "rgba(255, 255, 255, 0.6)";
+      }
     }
 
-    // Calculate and update success rate
+    // FIXED: Calculate success rate correctly
     const successRateElement = document.getElementById("successRate");
     if (successRateElement) {
       const totalRuns = updates.totalRuns;
       const runHistory = stats.runHistory || [];
-      const successfulRuns = runHistory.filter(run => run.status === "completed").length;
-      const successRate = totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0;
-      successRateElement.textContent = `${successRate}%`;
+
+      if (totalRuns > 0) {
+        // Count only completed runs as successful
+        const successfulRuns = runHistory.filter(
+          (run) => run.status === "completed",
+        ).length;
+        const successRate = Math.round((successfulRuns / totalRuns) * 100);
+
+        // Make sure it doesn't exceed 100%
+        const finalRate = Math.min(successRate, 100);
+        successRateElement.textContent = `${finalRate}%`;
+      } else {
+        successRateElement.textContent = "0%";
+      }
     }
 
-    // Update bot status
-    updateBotStatus(stats.isRunning || false);
+    // Update bot status - make sure it's not stuck on "running"
+    const actuallyRunning =
+      stats.isRunning === true || stats.currentStatus === "running";
+    updateBotStatus(actuallyRunning);
 
     // Update run history
     const runHistory = stats.runHistory || [];
@@ -373,43 +488,71 @@
     }
 
     if (!history || history.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">No runs yet</td></tr>';
+      tbody.innerHTML =
+        '<tr><td colspan="6" style="text-align: center; color: #666;">No runs yet</td></tr>';
       return;
     }
 
     console.log("Updating run history with", history.length, "entries");
 
-    tbody.innerHTML = history.slice(0, 20).map(run => {
-      const date = new Date(run.date || run.run_date).toLocaleString();
+    tbody.innerHTML = history
+      .slice(0, 20)
+      .map((run) => {
+        // FIXED: Proper date handling
+        let dateStr = run.date || run.run_date || run.lastRunDate;
+        let displayDate = "Unknown";
 
-      // Determine bot type
-      const isGPUScan = run.gpusFound !== undefined || run.botType === "gpu";
-      const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
-      const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
+        if (dateStr) {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            displayDate = date.toLocaleString();
+          }
+        }
 
-      const postsOrGPUs = isGPUScan ? (run.gpusFound || 0) : (run.postsUpdated || 0);
-      const commentsOrNew = isGPUScan ? (run.newGPUs || 0) : (run.commentsAdded || 0);
-      const duration = run.duration;
+        // Determine bot type
+        const isGPUScan = run.gpusFound !== undefined || run.botType === "gpu";
+        const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
+        const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
 
-      return `
-        <tr style="cursor: pointer;" onclick="showRunDetails(${JSON.stringify(run).replace(/"/g, "&quot;")}, '${botType}')">
-          <td>${date}</td>
+        const postsOrGPUs = isGPUScan
+          ? run.gpusFound || 0
+          : run.postsUpdated || 0;
+        const commentsOrNew = isGPUScan
+          ? run.newGPUs || 0
+          : run.commentsAdded || 0;
+        const duration = run.duration;
+
+        // Create safe JSON string for onclick
+        const runDataStr = JSON.stringify({
+          ...run,
+          displayDate: displayDate,
+          botType: botType,
+        }).replace(/"/g, "&quot;");
+
+        return `
+        <tr style="cursor: pointer;" onclick="showRunDetails(${runDataStr})">
+          <td>${displayDate}</td>
           <td><span class="bot-type-indicator ${botTypeClass}">${botType}</span></td>
-          <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status}</span></td>
+          <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status || "unknown"}</span></td>
           <td>${postsOrGPUs}</td>
           <td>${commentsOrNew}</td>
           <td>${formatDuration(duration) || "-"}</td>
         </tr>
       `;
-    }).join("");
+      })
+      .join("");
   }
 
   function getStatusClass(status) {
     switch (status) {
-      case "completed": return "status-idle";
-      case "running": return "status-running";
-      case "error": return "status-error";
-      default: return "status-idle";
+      case "completed":
+        return "status-idle";
+      case "running":
+        return "status-running";
+      case "error":
+        return "status-error";
+      default:
+        return "status-idle";
     }
   }
 
@@ -420,31 +563,34 @@
       error: "Failed with error",
       stopped: "Manually stopped",
       never_run: "Never run",
-      unknown: "Unknown status"
+      unknown: "Unknown status",
     };
     return statusMap[status] || status;
   }
 
   function formatTimeAgo(date) {
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    const dateObj = typeof date === "string" ? new Date(date) : date;
 
-    const intervals = {
-      year: 31536000,
-      month: 2592000,
-      week: 604800,
-      day: 86400,
-      hour: 3600,
-      minute: 60
-    };
-
-    for (const [name, value] of Object.entries(intervals)) {
-      const interval = Math.floor(seconds / value);
-      if (interval >= 1) {
-        return interval === 1 ? `1 ${name} ago` : `${interval} ${name}s ago`;
-      }
+    // Validate date
+    if (isNaN(dateObj.getTime())) {
+      return "Unknown";
     }
 
-    return "Just now";
+    const seconds = Math.floor((new Date() - dateObj) / 1000);
+
+    if (seconds < 0) {
+      // Future date - shouldn't happen
+      return "Future date";
+    }
+
+    if (seconds < 60) return "Just now";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return dateObj.toLocaleDateString();
   }
 
   function formatDuration(seconds) {
@@ -497,16 +643,21 @@
       cancelText: "Cancel",
       confirmClass: "modal-btn-primary",
       onConfirm: async () => {
-        const username = document.getElementById("modalForumUsername").value.trim();
+        const username = document
+          .getElementById("modalForumUsername")
+          .value.trim();
         const password = document.getElementById("modalForumPassword").value;
 
         if (!username || !password) {
-          Toast.warning("Missing Information", "Please enter both username and password");
+          Toast.warning(
+            "Missing Information",
+            "Please enter both username and password",
+          );
           return;
         }
 
         await saveCredentials(username, password);
-      }
+      },
     });
 
     setTimeout(() => {
@@ -518,16 +669,31 @@
     UI.showLoading(true);
 
     try {
-      const result = await API.post("/api/forum-credentials", {
-        forumUsername: username,
-        forumPassword: password
+      const response = await fetch("/api/forum-credentials", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          forumUsername: username,
+          forumPassword: password,
+        }),
       });
 
+      const result = await response.json();
+
       if (result && result.success) {
-        Toast.success("Credentials Updated", "Your forum credentials have been saved");
+        Toast.success(
+          "Credentials Updated",
+          "Your forum credentials have been saved",
+        );
         loadCredentialsStatus();
       } else {
-        Toast.error("Save Failed", result.error || "Failed to save credentials");
+        Toast.error(
+          "Save Failed",
+          result.error || "Failed to save credentials",
+        );
       }
     } catch (error) {
       Toast.error("Error", "Failed to save credentials");
@@ -537,14 +703,18 @@
   }
 
   function handleLogout() {
-    Modal.danger("Logout?", "Are you sure you want to logout? Any running bot operations will continue.", () => {
-      WS.close();
-      Auth.logout();
-    });
+    Modal.danger(
+      "Logout?",
+      "Are you sure you want to logout? Any running bot operations will continue.",
+      () => {
+        WS.close();
+        Auth.logout();
+      },
+    );
   }
 
   // Global functions
-  window.toggleLogs = function() {
+  window.toggleLogs = function () {
     logsVisible = !logsVisible;
     const logSection = document.getElementById("logSection");
 
@@ -558,32 +728,49 @@
     }
   };
 
-  window.refreshStats = async function() {
+  window.refreshStats = async function () {
     Toast.info("Refreshing", "Updating statistics...", 1500);
-    await refreshStats();
-    await loadGPUStats();
+    await loadAllData();
     UI.showRefreshIndicator();
   };
 
-  window.emergencyStop = async function() {
-    Modal.danger("Emergency Stop", "Are you sure you want to force stop the bot?", async () => {
-      try {
-        const response = await API.post("/api/stop-bot", {});
-        if (response && response.success) {
-          Toast.success("Bot Stopped", "Emergency stop initiated");
-          addLogEntry("Emergency stop initiated", "info");
-        } else {
-          Toast.error("Stop Failed", response.error || "Failed to stop bot");
+  window.emergencyStop = async function () {
+    Modal.danger(
+      "Emergency Stop",
+      "Are you sure you want to force stop the bot?",
+      async () => {
+        try {
+          const response = await fetch("/api/stop-bot", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${Auth.getToken()}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          const result = await response.json();
+
+          if (result && result.success) {
+            Toast.success("Bot Stopped", "Emergency stop initiated");
+            addLogEntry("Emergency stop initiated", "info");
+          } else {
+            Toast.error("Stop Failed", result.error || "Failed to stop bot");
+          }
+        } catch (error) {
+          Toast.error("Error", "Failed to stop bot: " + error.message);
         }
-      } catch (error) {
-        Toast.error("Error", "Failed to stop bot: " + error.message);
-      }
-    });
+      },
+    );
   };
 
-  window.showRunDetails = function(run, botType) {
-    console.log("Showing run details:", run, botType);
-    Toast.info("Run Details", `${botType} run from ${new Date(run.date || run.run_date).toLocaleString()}`);
+  // FIXED: Show run details with proper date handling
+  window.showRunDetails = function (run) {
+    console.log("Showing run details:", run);
+
+    const displayDate = run.displayDate || "Unknown date";
+    const botType = run.botType || "Unknown bot";
+
+    Toast.info("Run Details", `${botType} run from ${displayDate}`);
   };
 
   // Initialize
