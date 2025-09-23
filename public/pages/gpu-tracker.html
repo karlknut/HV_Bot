@@ -6,109 +6,6 @@
     <title>GPU Price Tracker</title>
     <link rel="stylesheet" href="/css/common.css" />
     <link rel="stylesheet" href="/css/gpu-tracker.css" />
-    <style>
-      /* Additional styles for enhanced features */
-      .model-stats-section {
-        background: rgba(30, 30, 30, 0.9);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-      }
-
-      .alerts-section {
-        background: linear-gradient(
-          135deg,
-          rgba(59, 130, 246, 0.1) 0%,
-          rgba(37, 99, 235, 0.05) 100%
-        );
-        border: 1px solid rgba(59, 130, 246, 0.2);
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-      }
-
-      .alert-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem;
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-      }
-
-      .alert-info {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-      }
-
-      .alert-condition {
-        color: #10b981;
-        font-weight: 600;
-      }
-
-      .alert-date {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 0.85rem;
-      }
-
-      .btn-alert {
-        background: rgba(245, 158, 11, 0.2);
-        border: 1px solid rgba(245, 158, 11, 0.4);
-        color: #f59e0b;
-      }
-
-      .btn-alert:hover {
-        background: rgba(245, 158, 11, 0.3);
-      }
-
-      .btn-danger {
-        background: rgba(239, 68, 68, 0.2);
-        border: 1px solid rgba(239, 68, 68, 0.4);
-        color: #ef4444;
-      }
-
-      .btn-danger:hover {
-        background: rgba(239, 68, 68, 0.3);
-      }
-
-      .gpu-row {
-        cursor: pointer;
-        transition: background 0.2s ease;
-      }
-
-      .gpu-row:hover {
-        background: rgba(59, 130, 246, 0.1);
-      }
-
-      .sort-indicator {
-        color: #3b82f6;
-        font-weight: bold;
-      }
-
-      .stat-count {
-        color: #10b981;
-        font-weight: 600;
-      }
-
-      .stat-price {
-        color: #f59e0b;
-        font-weight: 600;
-      }
-
-      @keyframes slideInFromRight {
-        from {
-          transform: translateX(100%);
-          opacity: 0;
-        }
-        to {
-          transform: translateX(0);
-          opacity: 1;
-        }
-      }
-    </style>
   </head>
   <body>
     <canvas id="starfield"></canvas>
@@ -116,10 +13,7 @@
     <!-- Header -->
     <div class="header">
       <div class="header-left">
-        <a
-          href="/dashboard"
-          style="text-decoration: none; display: flex; align-items: center"
-        >
+        <a href="/dashboard" style="text-decoration: none; display: flex; align-items: center">
           <div class="header-logo">
             <div class="header-logo-icon">HV</div>
             <h1>Forum Bot</h1>
@@ -147,18 +41,12 @@
       <!-- Page Title -->
       <div class="page-title">
         <h2>GPU Price Tracker</h2>
-        <p class="page-subtitle">
-          Smart monitoring with deep content analysis and price alerts
-        </p>
+        <p class="page-subtitle">Smart monitoring with deep content analysis and price alerts</p>
       </div>
 
       <!-- Controls Section -->
       <div class="controls-section">
-        <button
-          class="btn btn-primary"
-          id="scanButton"
-          onclick="startGPUScan()"
-        >
+        <button class="btn btn-primary" id="scanButton" onclick="startGPUScan()">
           <span class="btn-icon">🔍</span>
           <span>Deep Scan</span>
         </button>
@@ -178,10 +66,6 @@
           <span class="btn-icon">🗑️</span>
           <span>Clear Database</span>
         </button>
-        <button class="btn btn-secondary" onclick="toggleAlerts()">
-          <span class="btn-icon">🔔</span>
-          <span>Show Alerts (0)</span>
-        </button>
       </div>
 
       <!-- Scan Progress -->
@@ -190,14 +74,6 @@
           <div class="progress-fill" id="progressFill"></div>
         </div>
         <p class="progress-text" id="progressText">Starting enhanced scan...</p>
-      </div>
-
-      <!-- Price Alerts Section -->
-      <div class="alerts-section" id="alertsSection" style="display: none">
-        <h3>Your Price Alerts</h3>
-        <div id="alertsContainer">
-          <p class="table-empty">No price alerts set</p>
-        </div>
       </div>
 
       <!-- Filters Section -->
@@ -235,7 +111,7 @@
           <h3>GPU Models</h3>
           <div class="stat-value" id="totalModels">0</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" style="display: none;">
           <h3>Average Price</h3>
           <div class="stat-value" id="avgPrice">€0</div>
         </div>
@@ -255,98 +131,3 @@
         <div class="table-container">
           <table class="gpu-table">
             <thead>
-              <tr>
-                <th>Model</th>
-                <th>Listings</th>
-                <th>Avg Price</th>
-                <th>Min Price</th>
-                <th>Max Price</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="modelStatsBody">
-              <tr>
-                <td colspan="6" class="table-empty">
-                  Loading model statistics...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- GPU Listings Table -->
-      <div class="listings-section" id="listingsSection">
-        <h3>GPU Listings</h3>
-        <div class="table-container">
-          <table class="gpu-table" id="gpuTable">
-            <thead>
-              <tr>
-                <th onclick="sortTable('model')">Model ↕</th>
-                <th onclick="sortTable('brand')">Brand ↕</th>
-                <th onclick="sortTable('price')">Price ↕</th>
-                <th>Currency</th>
-                <th>Title</th>
-                <th>Location</th>
-                <th>Author</th>
-                <th onclick="sortTable('scraped_at')">Date ↕</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="gpuTableBody">
-              <tr>
-                <td colspan="9" class="table-empty">
-                  No listings yet. Click "Deep Scan" to start.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Market Analysis Section -->
-      <div class="chart-section" id="chartSection" style="display: none">
-        <h3>Market Analysis</h3>
-        <canvas id="priceChart"></canvas>
-      </div>
-    </div>
-
-    <!-- Modal for GPU Details and Alerts -->
-    <div id="modalOverlay" class="modal-overlay">
-      <div class="modal-container">
-        <div class="modal-header">
-          <div id="modalIcon" class="modal-icon">
-            <span id="modalIconSymbol">?</span>
-          </div>
-          <h2 id="modalTitle" class="modal-title">GPU Details</h2>
-        </div>
-        <div id="modalBody" class="modal-body"></div>
-        <div id="modalActions" class="modal-actions">
-          <button id="modalCancel" class="modal-btn modal-btn-secondary">
-            Cancel
-          </button>
-          <button id="modalConfirm" class="modal-btn modal-btn-primary">
-            Confirm
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Toast Notification -->
-    <div id="notificationToast" class="notification-toast">
-      <div id="toastIcon" class="notification-icon">
-        <span id="toastIconSymbol">✓</span>
-      </div>
-      <div class="notification-content">
-        <div id="toastTitle" class="notification-title">Success</div>
-        <div id="toastMessage" class="notification-message">
-          Operation completed
-        </div>
-      </div>
-      <button id="toastClose" class="notification-close">×</button>
-    </div>
-
-    <script src="/js/common.js"></script>
-    <script src="/js/gpu-tracker.js"></script>
-  </body>
-</html>

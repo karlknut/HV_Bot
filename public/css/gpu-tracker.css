@@ -1,4 +1,4 @@
-/* gpu-tracker.css - GPU Price Tracker specific styles */
+/* gpu-tracker.css - Complete GPU Tracker styles */
 
 .gpu-tracker-container {
   max-width: 1400px;
@@ -120,11 +120,7 @@
 }
 
 .stat-card {
-  background: linear-gradient(
-    135deg,
-    rgba(42, 42, 42, 0.9) 0%,
-    rgba(30, 30, 30, 0.9) 100%
-  );
+  background: linear-gradient(135deg, rgba(42, 42, 42, 0.9) 0%, rgba(30, 30, 30, 0.9) 100%);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 1.5rem;
@@ -155,6 +151,62 @@
   font-size: 1.2rem;
 }
 
+/* Model Stats Section */
+.model-stats-section {
+  background: rgba(30, 30, 30, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.model-stats-section h3 {
+  color: #3b82f6;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+}
+
+/* Alerts Section */
+.alerts-section {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.alerts-section h3 {
+  color: #3b82f6;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+}
+
+.alert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.alert-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.alert-condition {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.alert-date {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+}
+
 /* Listings Section */
 .listings-section {
   background: rgba(30, 30, 30, 0.9);
@@ -171,10 +223,12 @@
   font-size: 1.3rem;
 }
 
+/* Table Container */
 .table-container {
   overflow-x: auto;
 }
 
+/* GPU Table */
 .gpu-table {
   width: 100%;
   border-collapse: collapse;
@@ -205,9 +259,22 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.gpu-row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.gpu-row:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
 .gpu-model {
   font-weight: 600;
   color: #3b82f6;
+}
+
+.gpu-brand {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .gpu-price {
@@ -226,6 +293,10 @@
   white-space: nowrap;
 }
 
+.gpu-location {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .gpu-author {
   color: rgba(255, 255, 255, 0.7);
 }
@@ -240,6 +311,24 @@
   gap: 0.5rem;
 }
 
+/* Table Stats */
+.stat-count {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.stat-price {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+/* Sort Indicator */
+.sort-indicator {
+  color: #3b82f6;
+  font-weight: bold;
+}
+
+/* Small Buttons */
 .btn-small {
   padding: 0.4rem 0.8rem;
   background: rgba(59, 130, 246, 0.2);
@@ -258,6 +347,38 @@
   transform: translateY(-1px);
 }
 
+/* Button Variants */
+.btn-alert {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+}
+
+.btn-alert:hover {
+  background: rgba(245, 158, 11, 0.3);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.btn-warning {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+}
+
+.btn-warning:hover {
+  background: rgba(245, 158, 11, 0.3);
+}
+
+/* Empty Table State */
 .table-empty {
   text-align: center;
   color: rgba(255, 255, 255, 0.5);

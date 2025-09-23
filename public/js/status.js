@@ -1,4 +1,4 @@
-// Fixed version with proper data extraction
+// public/js/status.js - Complete fixed version with proper data extraction
 (function () {
   "use strict";
 
@@ -69,10 +69,7 @@
     switch (message.type) {
       case "botStarted":
         updateBotStatus(true);
-        addLogEntry(
-          "Forum Bot started: " + new Date().toLocaleString(),
-          "info",
-        );
+        addLogEntry("Forum Bot started: " + new Date().toLocaleString(), "info");
         document.getElementById("emergencyStop").disabled = false;
         Toast.info("Bot Started", "Forum bot is now running");
         break;
@@ -87,34 +84,22 @@
         break;
 
       case "gpuScanCompleted":
-        addLogEntry(
-          `GPU Scan completed: Found ${message.data.totalFound || 0} listings`,
-          "info",
-        );
+        addLogEntry(`GPU Scan completed: Found ${message.data.totalFound || 0} listings`, "info");
         setTimeout(() => {
           loadGPUStats();
           refreshStats();
         }, 1000);
-        Toast.success(
-          "GPU Scan Complete",
-          `Found ${message.data.totalFound || 0} listings`,
-        );
+        Toast.success("GPU Scan Complete", `Found ${message.data.totalFound || 0} listings`);
         break;
 
       case "botCompleted":
         updateBotStatus(false);
-        addLogEntry(
-          `Forum Bot completed: ${message.data.postsUpdated} posts, ${message.data.commentsAdded} comments`,
-          "info",
-        );
+        addLogEntry(`Forum Bot completed: ${message.data.postsUpdated} posts, ${message.data.commentsAdded} comments`, "info");
         document.getElementById("emergencyStop").disabled = true;
         setTimeout(() => {
           refreshStats();
         }, 1000);
-        Toast.success(
-          "Bot Completed",
-          `Updated ${message.data.postsUpdated} posts`,
-        );
+        Toast.success("Bot Completed", `Updated ${message.data.postsUpdated} posts`);
         break;
 
       case "botStopped":
@@ -185,23 +170,11 @@
       const response = await API.get("/api/stats");
       console.log("Raw stats response:", response);
 
-      if (response && response.success) {
-        // Handle different response structures
-        let statsData = response.data;
-
-        // If data is nested, extract it
-        if (statsData && statsData.data) {
-          statsData = statsData.data;
-        }
-
+      if (response && response.success && response.data) {
+        // Extract the actual data
+        const statsData = response.data;
         console.log("Extracted stats data:", statsData);
-
-        if (statsData) {
-          updateStatsDisplay(statsData);
-        } else {
-          console.error("No stats data found in response");
-          setDefaultStats();
-        }
+        updateStatsDisplay(statsData);
       } else {
         console.error("Stats API call failed:", response);
         setDefaultStats();
@@ -221,7 +194,7 @@
       lastRunDate: null,
       lastRunStatus: "never_run",
       runHistory: [],
-      isRunning: false,
+      isRunning: false
     });
   }
 
@@ -229,29 +202,14 @@
     try {
       console.log("Loading GPU stats...");
 
-      // Get total listings first
-      const listingsResponse = await API.get("/api/gpu/listings?limit=1");
-      console.log("Listings response for count:", listingsResponse);
+      // Get GPU listings for count
+      const listingsResponse = await API.get("/api/gpu/listings?limit=1000");
+      console.log("GPU listings response:", listingsResponse);
 
       let totalListings = 0;
-      if (listingsResponse && listingsResponse.success) {
-        totalListings = listingsResponse.total || 0;
-
-        // If total not provided, try to get from data length
-        if (
-          totalListings === 0 &&
-          listingsResponse.data &&
-          Array.isArray(listingsResponse.data)
-        ) {
-          // Get actual count with a larger limit
-          const fullResponse = await API.get("/api/gpu/listings?limit=1000");
-          if (fullResponse && fullResponse.success && fullResponse.data) {
-            totalListings = fullResponse.data.length;
-          }
-        }
+      if (listingsResponse && listingsResponse.success && listingsResponse.data) {
+        totalListings = Array.isArray(listingsResponse.data) ? listingsResponse.data.length : 0;
       }
-
-      console.log("Total GPU listings:", totalListings);
 
       // Get model stats
       const statsResponse = await API.get("/api/gpu/stats");
@@ -261,42 +219,17 @@
       let lastScanDate = null;
 
       if (statsResponse && statsResponse.success && statsResponse.data) {
-        const stats = statsResponse.data;
-        uniqueModels = Array.isArray(stats) ? stats.length : 0;
+        const stats = Array.isArray(statsResponse.data) ? statsResponse.data : [];
+        uniqueModels = stats.length;
 
-        // Find latest date from stats
-        if (Array.isArray(stats) && stats.length > 0) {
-          const latestDates = stats
-            .map((s) => s.latestDate)
-            .filter((d) => d)
-            .map((d) => new Date(d))
-            .sort((a, b) => b - a);
-
-          if (latestDates.length > 0) {
-            lastScanDate = latestDates[0];
-          }
-        }
-      }
-
-      // If no date from stats, try to get from recent listings
-      if (!lastScanDate && totalListings > 0) {
-        try {
-          const recentResponse = await API.get(
-            "/api/gpu/listings?limit=1&sortBy=scraped_at&sortOrder=desc",
+        // Find latest date from listings
+        if (listingsResponse.data && listingsResponse.data.length > 0) {
+          const sortedByDate = listingsResponse.data.sort((a, b) => 
+            new Date(b.scraped_at) - new Date(a.scraped_at)
           );
-          if (
-            recentResponse &&
-            recentResponse.success &&
-            recentResponse.data &&
-            recentResponse.data.length > 0
-          ) {
-            const mostRecent = recentResponse.data[0];
-            if (mostRecent.scraped_at) {
-              lastScanDate = new Date(mostRecent.scraped_at);
-            }
+          if (sortedByDate[0].scraped_at) {
+            lastScanDate = new Date(sortedByDate[0].scraped_at);
           }
-        } catch (error) {
-          console.error("Error getting recent listings:", error);
         }
       }
 
@@ -315,8 +248,8 @@
       }
 
       if (totalScansElement) {
-        // Estimate scans based on listings (roughly 20-30 per scan)
-        const estimatedScans = Math.max(1, Math.ceil(totalListings / 25));
+        // Estimate scans based on listings
+        const estimatedScans = totalListings > 0 ? Math.max(1, Math.ceil(totalListings / 25)) : 0;
         totalScansElement.textContent = estimatedScans.toString();
       }
 
@@ -324,22 +257,17 @@
         if (lastScanDate) {
           lastScanElement.textContent = formatTimeAgo(lastScanDate);
         } else {
-          lastScanElement.textContent =
-            totalListings > 0 ? "Recently" : "Never";
+          lastScanElement.textContent = totalListings > 0 ? "Recently" : "Never";
         }
       }
 
-      console.log("GPU stats updated:", {
-        totalListings,
-        uniqueModels,
-        lastScanDate,
-      });
+      console.log("GPU stats updated:", { totalListings, uniqueModels, lastScanDate });
     } catch (error) {
       console.error("Error loading GPU stats:", error);
 
       // Set defaults on error
       const elements = ["totalGPUsFound", "uniqueGPUModels", "totalGPUScans"];
-      elements.forEach((id) => {
+      elements.forEach(id => {
         const element = document.getElementById(id);
         if (element) element.textContent = "0";
       });
@@ -375,16 +303,14 @@
     if (connectionStatus) {
       if (hasForumCredentials) {
         connectionStatus.className = "status-connected";
-        connectionStatus.innerHTML =
-          '<span class="status-dot"></span><span>Connected to Forum</span>';
+        connectionStatus.innerHTML = '<span class="status-dot"></span><span>Connected to Forum</span>';
 
         if (data.username) {
           forumUsername = data.username;
         }
       } else {
         connectionStatus.className = "status-disconnected";
-        connectionStatus.innerHTML =
-          '<span class="status-dot" style="background: #ef4444;"></span><span>Not Connected</span>';
+        connectionStatus.innerHTML = '<span class="status-dot" style="background: #ef4444;"></span><span>Not Connected</span>';
       }
     }
   }
@@ -392,12 +318,11 @@
   function updateStatsDisplay(stats) {
     console.log("Updating stats display with:", stats);
 
-    // Update basic stats with safe defaults
+    // Update basic stats
     const updates = {
-      totalRuns: stats.totalRuns || stats.total_runs || 0,
-      postsUpdated: stats.totalPostsUpdated || stats.total_posts_updated || 0,
-      commentsAdded:
-        stats.totalCommentsAdded || stats.total_comments_added || 0,
+      totalRuns: stats.totalRuns || 0,
+      postsUpdated: stats.totalPostsUpdated || 0,
+      commentsAdded: stats.totalCommentsAdded || 0
     };
 
     Object.entries(updates).forEach(([id, value]) => {
@@ -410,16 +335,13 @@
     // Update last run
     const lastRunElement = document.getElementById("lastRun");
     if (lastRunElement) {
-      const lastRunDate = stats.lastRunDate || stats.last_run_date;
-      lastRunElement.textContent = lastRunDate
-        ? formatTimeAgo(lastRunDate)
-        : "Never";
+      lastRunElement.textContent = stats.lastRunDate ? formatTimeAgo(stats.lastRunDate) : "Never";
     }
 
     // Update last run status
     const lastRunStatusElement = document.getElementById("lastRunStatus");
     if (lastRunStatusElement) {
-      const status = stats.lastRunStatus || stats.last_run_status || "unknown";
+      const status = stats.lastRunStatus || "unknown";
       lastRunStatusElement.textContent = formatStatus(status);
     }
 
@@ -428,11 +350,8 @@
     if (successRateElement) {
       const totalRuns = updates.totalRuns;
       const runHistory = stats.runHistory || [];
-      const successfulRuns = runHistory.filter(
-        (run) => run.status === "completed",
-      ).length;
-      const successRate =
-        totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0;
+      const successfulRuns = runHistory.filter(run => run.status === "completed").length;
+      const successRate = totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0;
       successRateElement.textContent = `${successRate}%`;
     }
 
@@ -454,36 +373,25 @@
     }
 
     if (!history || history.length === 0) {
-      tbody.innerHTML =
-        '<tr><td colspan="6" style="text-align: center; color: #666;">No runs yet</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">No runs yet</td></tr>';
       return;
     }
 
     console.log("Updating run history with", history.length, "entries");
 
-    tbody.innerHTML = history
-      .slice(0, 20)
-      .map((run) => {
-        const date = new Date(run.date || run.run_date).toLocaleString();
+    tbody.innerHTML = history.slice(0, 20).map(run => {
+      const date = new Date(run.date || run.run_date).toLocaleString();
 
-        // Determine bot type
-        const isGPUScan =
-          run.gpusFound !== undefined ||
-          run.gpus_found !== undefined ||
-          run.botType === "gpu" ||
-          run.bot_type === "gpu";
-        const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
-        const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
+      // Determine bot type
+      const isGPUScan = run.gpusFound !== undefined || run.botType === "gpu";
+      const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
+      const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
 
-        const postsOrGPUs = isGPUScan
-          ? run.gpusFound || run.gpus_found || 0
-          : run.postsUpdated || run.posts_updated || 0;
-        const commentsOrNew = isGPUScan
-          ? run.newGPUs || run.new_gpus || 0
-          : run.commentsAdded || run.comments_added || 0;
-        const duration = run.duration || run.duration_seconds;
+      const postsOrGPUs = isGPUScan ? (run.gpusFound || 0) : (run.postsUpdated || 0);
+      const commentsOrNew = isGPUScan ? (run.newGPUs || 0) : (run.commentsAdded || 0);
+      const duration = run.duration;
 
-        return `
+      return `
         <tr style="cursor: pointer;" onclick="showRunDetails(${JSON.stringify(run).replace(/"/g, "&quot;")}, '${botType}')">
           <td>${date}</td>
           <td><span class="bot-type-indicator ${botTypeClass}">${botType}</span></td>
@@ -493,20 +401,15 @@
           <td>${formatDuration(duration) || "-"}</td>
         </tr>
       `;
-      })
-      .join("");
+    }).join("");
   }
 
   function getStatusClass(status) {
     switch (status) {
-      case "completed":
-        return "status-idle";
-      case "running":
-        return "status-running";
-      case "error":
-        return "status-error";
-      default:
-        return "status-idle";
+      case "completed": return "status-idle";
+      case "running": return "status-running";
+      case "error": return "status-error";
+      default: return "status-idle";
     }
   }
 
@@ -517,7 +420,7 @@
       error: "Failed with error",
       stopped: "Manually stopped",
       never_run: "Never run",
-      unknown: "Unknown status",
+      unknown: "Unknown status"
     };
     return statusMap[status] || status;
   }
@@ -531,7 +434,7 @@
       week: 604800,
       day: 86400,
       hour: 3600,
-      minute: 60,
+      minute: 60
     };
 
     for (const [name, value] of Object.entries(intervals)) {
@@ -594,21 +497,16 @@
       cancelText: "Cancel",
       confirmClass: "modal-btn-primary",
       onConfirm: async () => {
-        const username = document
-          .getElementById("modalForumUsername")
-          .value.trim();
+        const username = document.getElementById("modalForumUsername").value.trim();
         const password = document.getElementById("modalForumPassword").value;
 
         if (!username || !password) {
-          Toast.warning(
-            "Missing Information",
-            "Please enter both username and password",
-          );
+          Toast.warning("Missing Information", "Please enter both username and password");
           return;
         }
 
         await saveCredentials(username, password);
-      },
+      }
     });
 
     setTimeout(() => {
@@ -622,20 +520,14 @@
     try {
       const result = await API.post("/api/forum-credentials", {
         forumUsername: username,
-        forumPassword: password,
+        forumPassword: password
       });
 
       if (result && result.success) {
-        Toast.success(
-          "Credentials Updated",
-          "Your forum credentials have been saved",
-        );
+        Toast.success("Credentials Updated", "Your forum credentials have been saved");
         loadCredentialsStatus();
       } else {
-        Toast.error(
-          "Save Failed",
-          result.error || "Failed to save credentials",
-        );
+        Toast.error("Save Failed", result.error || "Failed to save credentials");
       }
     } catch (error) {
       Toast.error("Error", "Failed to save credentials");
@@ -645,18 +537,14 @@
   }
 
   function handleLogout() {
-    Modal.danger(
-      "Logout?",
-      "Are you sure you want to logout? Any running bot operations will continue.",
-      () => {
-        WS.close();
-        Auth.logout();
-      },
-    );
+    Modal.danger("Logout?", "Are you sure you want to logout? Any running bot operations will continue.", () => {
+      WS.close();
+      Auth.logout();
+    });
   }
 
   // Global functions
-  window.toggleLogs = function () {
+  window.toggleLogs = function() {
     logsVisible = !logsVisible;
     const logSection = document.getElementById("logSection");
 
@@ -670,40 +558,32 @@
     }
   };
 
-  window.refreshStats = async function () {
+  window.refreshStats = async function() {
     Toast.info("Refreshing", "Updating statistics...", 1500);
     await refreshStats();
     await loadGPUStats();
     UI.showRefreshIndicator();
   };
 
-  window.emergencyStop = async function () {
-    Modal.danger(
-      "Emergency Stop",
-      "Are you sure you want to force stop the bot?",
-      async () => {
-        try {
-          const response = await API.post("/api/stop-bot", {});
-          if (response && response.success) {
-            Toast.success("Bot Stopped", "Emergency stop initiated");
-            addLogEntry("Emergency stop initiated", "info");
-          } else {
-            Toast.error("Stop Failed", response.error || "Failed to stop bot");
-          }
-        } catch (error) {
-          Toast.error("Error", "Failed to stop bot: " + error.message);
+  window.emergencyStop = async function() {
+    Modal.danger("Emergency Stop", "Are you sure you want to force stop the bot?", async () => {
+      try {
+        const response = await API.post("/api/stop-bot", {});
+        if (response && response.success) {
+          Toast.success("Bot Stopped", "Emergency stop initiated");
+          addLogEntry("Emergency stop initiated", "info");
+        } else {
+          Toast.error("Stop Failed", response.error || "Failed to stop bot");
         }
-      },
-    );
+      } catch (error) {
+        Toast.error("Error", "Failed to stop bot: " + error.message);
+      }
+    });
   };
 
-  window.showRunDetails = function (run, botType) {
+  window.showRunDetails = function(run, botType) {
     console.log("Showing run details:", run, botType);
-    // Implementation for showing run details modal
-    Toast.info(
-      "Run Details",
-      `${botType} run from ${new Date(run.date || run.run_date).toLocaleString()}`,
-    );
+    Toast.info("Run Details", `${botType} run from ${new Date(run.date || run.run_date).toLocaleString()}`);
   };
 
   // Initialize
