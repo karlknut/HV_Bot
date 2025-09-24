@@ -776,131 +776,78 @@
     const gpu = gpuListings.find((g) => g.id == id);
     if (!gpu) return;
 
-    console.log("Viewing GPU details:", gpu);
+    let priceDetails = `
+    <div style="margin-bottom: 1rem;">
+      <strong style="color: #3b82f6;">Price:</strong> 
+      <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
+        ${gpu.price}${escapeHtml(gpu.currency)}
+      </span>
+    </div>
+  `;
 
-    let modalContent;
-
-    // Handle Multiple GPUs case
-    if (gpu.model === "Multiple" && gpu.multiple_gpus) {
-      modalContent = `
-        <div style="text-align: left;">
-          <div style="margin-bottom: 1.5rem; text-align: center;">
-            <h3 style="color: #f59e0b;">Multiple GPUs Found (${gpu.gpu_count})</h3>
-            <p style="color: #aaa;">This listing contains multiple graphics cards</p>
-          </div>
-          
-          <div style="margin-bottom: 1.5rem;">
-            <strong style="color: #3b82f6;">Average Price:</strong> 
-            <span style="color: #10b981; font-size: 1.2rem; font-weight: bold;">
-              ${gpu.price}${escapeHtml(gpu.currency)}
-            </span>
-          </div>
-
-          <div style="margin-bottom: 1.5rem;">
-            <strong style="color: #3b82f6;">GPUs in this listing:</strong>
-            <div style="margin-top: 0.75rem; max-height: 300px; overflow-y: auto;">
-              ${gpu.multiple_gpus
-                .map(
-                  (gpuItem, index) => `
-                <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 8px; border-left: 3px solid #3b82f6;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                      <div style="color: #fff; font-weight: 600; font-size: 1.1rem;">${escapeHtml(gpuItem.model)}</div>
-                      <div style="color: #aaa; font-size: 0.9rem;">Brand: ${escapeHtml(detectBrand(gpuItem.model))}</div>
-                    </div>
-                    <div style="text-align: right;">
-                      <div style="color: #10b981; font-weight: bold; font-size: 1.1rem;">
-                        ${gpuItem.price}${escapeHtml(gpuItem.currency)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              `,
-                )
-                .join("")}
-            </div>
-          </div>
-
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Location:</strong> 
-            <span style="color: #ccc;">${escapeHtml(gpu.location || "Not specified")}</span>
-          </div>
-          
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Seller:</strong> 
-            <span style="color: #ccc;">${escapeHtml(gpu.author)}</span>
-          </div>
-          
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Title:</strong> 
-            <div style="color: #ccc; margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 5px;">
-              ${escapeHtml(gpu.title)}
-            </div>
-          </div>
-          
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Posted:</strong> 
-            <span style="color: #ccc;">${new Date(gpu.scraped_at).toLocaleString()}</span>
-          </div>
-          
-          <div style="margin-top: 1.5rem; text-align: center;">
-            <a href="${gpu.url}" target="_blank" class="btn btn-primary" style="text-decoration: none; padding: 0.75rem 2rem;">
-              View on Forum →
-            </a>
-          </div>
-        </div>
-      `;
-    } else {
-      // Single GPU details
-      modalContent = `
-        <div style="text-align: left;">
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Model:</strong> 
-            <span style="color: #fff; font-size: 1.2rem;">${escapeHtml(gpu.model)}</span>
-          </div>
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Brand:</strong> 
-            <span style="color: #ccc;">${escapeHtml(gpu.brand)}</span>
-          </div>
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Price:</strong> 
-            <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
-              ${gpu.price}${escapeHtml(gpu.currency)}
-            </span>
-          </div>
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Location:</strong> 
-            <span style="color: #ccc;">${escapeHtml(gpu.location || "Not specified")}</span>
-          </div>
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Seller:</strong> 
-            <span style="color: #ccc;">${escapeHtml(gpu.author)}</span>
-          </div>
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Title:</strong> 
-            <div style="color: #ccc; margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 5px;">
-              ${escapeHtml(gpu.title)}
-            </div>
-          </div>
-          <div style="margin-bottom: 1rem;">
-            <strong style="color: #3b82f6;">Posted:</strong> 
-            <span style="color: #ccc;">${new Date(gpu.scraped_at).toLocaleString()}</span>
-          </div>
-          <div style="margin-top: 1.5rem; text-align: center;">
-            <a href="${gpu.url}" target="_blank" class="btn btn-primary" style="text-decoration: none; padding: 0.75rem 2rem;">
-              View on Forum →
-            </a>
-          </div>
-        </div>
-      `;
+    // Add AH and OK prices if available
+    if (gpu.ah_price) {
+      priceDetails += `
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">AH Price:</strong> 
+        <span style="color: #f59e0b; font-size: 1.2rem; font-weight: bold;">
+          ${gpu.ah_price} AH
+        </span>
+      </div>
+    `;
     }
+
+    if (gpu.ok_price) {
+      priceDetails += `
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">OK Price:</strong> 
+        <span style="color: #f59e0b; font-size: 1.2rem; font-weight: bold;">
+          ${gpu.ok_price} OK
+        </span>
+      </div>
+    `;
+    }
+
+    const modalContent = `
+    <div style="text-align: left;">
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Model:</strong> 
+        <span style="color: #fff; font-size: 1.2rem;">${escapeHtml(gpu.model)}</span>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Brand:</strong> 
+        <span style="color: #ccc;">${escapeHtml(gpu.brand)}</span>
+      </div>
+      ${priceDetails}
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Location:</strong> 
+        <span style="color: #ccc;">${escapeHtml(gpu.location || "Not specified")}</span>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Seller:</strong> 
+        <span style="color: #ccc;">${escapeHtml(gpu.author)}</span>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Title:</strong> 
+        <div style="color: #ccc; margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 5px;">
+          ${escapeHtml(gpu.title)}
+        </div>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Posted:</strong> 
+        <span style="color: #ccc;">${new Date(gpu.scraped_at).toLocaleString()}</span>
+      </div>
+      <div style="margin-top: 1.5rem; text-align: center;">
+        <a href="${gpu.url}" target="_blank" class="btn btn-primary" style="text-decoration: none; padding: 0.75rem 2rem;">
+          View on Forum →
+        </a>
+      </div>
+    </div>
+  `;
 
     Modal.show({
       type: "info",
-      title:
-        gpu.model === "Multiple"
-          ? "Multiple GPU Listing Details"
-          : "GPU Listing Details",
+      title: "GPU Listing Details",
       message: "",
       confirmText: "Close",
       confirmClass: "modal-btn-primary",

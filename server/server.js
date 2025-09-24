@@ -164,26 +164,30 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
     const stats = await db.getUserStats(req.user.userId);
     const runHistory = await db.getRunHistory(req.user.userId, 50);
 
-    // Get bot status from bot manager
     const botManager = require("./bot-manager");
     const botStatus = botManager.getStatus(req.user.userId);
 
-    // Format response
+    // Format run history properly
+    const formattedHistory = runHistory.map((run) => ({
+      date: run.date || run.run_date,
+      status: run.status,
+      botType: run.botType || (run.gpusFound !== undefined ? "gpu" : "forum"),
+      postsUpdated: run.postsUpdated || 0,
+      commentsAdded: run.commentsAdded || 0,
+      gpusFound: run.gpusFound || 0,
+      newGPUs: run.newGPUs || 0,
+      threadTitles: run.threadTitles || [],
+      error: run.error,
+      duration: run.duration || 0,
+    }));
+
     const responseData = {
       totalRuns: stats.total_runs,
       totalPostsUpdated: stats.total_posts_updated,
       totalCommentsAdded: stats.total_comments_added,
       lastRunDate: stats.last_run_date,
       lastRunStatus: stats.last_run_status,
-      runHistory: runHistory.map((run) => ({
-        date: run.run_date,
-        status: run.status,
-        postsUpdated: run.posts_updated,
-        commentsAdded: run.comments_added,
-        threadTitles: run.thread_titles || [],
-        error: run.error_message,
-        duration: run.duration_seconds,
-      })),
+      runHistory: formattedHistory,
       isRunning: botStatus.isRunning,
       currentStatus: botStatus.status,
     };

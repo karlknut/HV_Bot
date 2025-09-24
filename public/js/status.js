@@ -64,6 +64,21 @@
     if (changeCredsBtn) {
       changeCredsBtn.addEventListener("click", showChangeCredentialsModal);
     }
+
+    // Add update bot stats button handler
+    const updateBotStatsBtn = document.getElementById("updateBotStats");
+    if (updateBotStatsBtn) {
+      updateBotStatsBtn.addEventListener("click", updateBotStats);
+    }
+  }
+
+  async function updateBotStats() {
+    Toast.info("Updating", "Refreshing bot statistics...", 1500);
+
+    // Recalculate stats from run history
+    await refreshStats();
+
+    Toast.success("Updated", "Bot statistics have been recalculated");
   }
 
   function handleWebSocketMessage(message) {
@@ -455,41 +470,118 @@
 
     tbody.innerHTML = history
       .slice(0, 20)
-      .map((run) => {
-        const date = new Date(run.date || run.run_date);
-        const displayDate = !isNaN(date.getTime())
-          ? date.toLocaleString()
-          : "Unknown";
+      .map((run, index) => {
+        // Properly format the date
+        let displayDate = "Unknown";
+        if (run.date) {
+          const date = new Date(run.date);
+          if (!isNaN(date.getTime())) {
+            displayDate = date.toLocaleString();
+          }
+        }
 
-        const isGPUScan = run.gpusFound !== undefined || run.botType === "gpu";
+        // Determine bot type properly
+        const isGPUScan = run.botType === "gpu" || run.gpusFound !== undefined;
         const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
         const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
 
+        // Get the right values based on bot type
         const postsOrGPUs = isGPUScan
           ? run.gpusFound || 0
           : run.postsUpdated || 0;
         const commentsOrNew = isGPUScan
           ? run.newGPUs || 0
           : run.commentsAdded || 0;
-        const duration = run.duration;
+        const duration = run.duration || 0;
 
-        // Create row with clickable handler
         return `
-        <tr style="cursor: pointer;" onclick="window.showRunDetails('${escapeHtml(
-          run.date || "",
-        )}', '${escapeHtml(botType)}', '${run.status || "unknown"}')">
+        <tr style="cursor: pointer;" data-run-index="${index}">
           <td>${displayDate}</td>
           <td><span class="bot-type-indicator ${botTypeClass}">${botType}</span></td>
-          <td><span class="status-indicator ${getStatusClass(
-            run.status,
-          )}">${run.status || "unknown"}</span></td>
+          <td><span class="status-indicator ${getStatusClass(run.status)}">${run.status || "unknown"}</span></td>
           <td>${postsOrGPUs}</td>
           <td>${commentsOrNew}</td>
-          <td>${formatDuration(duration) || "-"}</td>
+          <td>${formatDuration(duration)}</td>
         </tr>
       `;
       })
       .join("");
+
+    // Add click handlers to rows
+    const rows = tbody.querySelectorAll("tr[data-run-index]");
+    rows.forEach((row) => {
+      row.addEventListener("click", function () {
+        const index = parseInt(this.getAttribute("data-run-index"));
+        const run = history[index];
+        if (run) {
+          showRunDetailsModal(run);
+        }
+      });
+    });
+  }
+
+  function showRunDetailsModal(run) {
+    let displayDate = "Unknown";
+    if (run.date) {
+      const date = new Date(run.date);
+      if (!isNaN(date.getTime())) {
+        displayDate = date.toLocaleString();
+      }
+    }
+
+    const isGPUScan = run.botType === "gpu" || run.gpusFound !== undefined;
+    const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
+
+    let details = `
+    <div style="text-align: left;">
+      <p><strong>Date:</strong> ${displayDate}</p>
+      <p><strong>Bot Type:</strong> ${botType}</p>
+      <p><strong>Status:</strong> ${run.status || "unknown"}</p>
+      <p><strong>Duration:</strong> ${formatDuration(run.duration)}</p>
+  `;
+
+    if (isGPUScan) {
+      details += `
+      <p><strong>GPUs Found:</strong> ${run.gpusFound || 0}</p>
+      <p><strong>New GPUs:</strong> ${run.newGPUs || 0}</p>
+      <p><strong>Duplicates:</strong> ${run.duplicates || 0}</p>
+      <p><strong>Pages Scanned:</strong> ${run.pagesScanned || 0}</p>
+    `;
+    } else {
+      details += `
+      <p><strong>Posts Updated:</strong> ${run.postsUpdated || 0}</p>
+      <p><strong>Comments Added:</strong> ${run.commentsAdded || 0}</p>
+    `;
+
+      if (run.threadTitles && run.threadTitles.length > 0) {
+        details += `
+        <p><strong>Threads Processed:</strong></p>
+        <ul style="margin-left: 20px; color: #ccc;">
+          ${run.threadTitles.map((title) => `<li>${escapeHtml(title)}</li>`).join("")}
+        </ul>
+      `;
+      }
+    }
+
+    if (run.error) {
+      details += `<p style="color: #ef4444;"><strong>Error:</strong> ${run.error}</p>`;
+    }
+
+    details += `</div>`;
+
+    Modal.show({
+      type: "info",
+      title: "Run Details",
+      message: "",
+      confirmText: "Close",
+      confirmClass: "modal-btn-primary",
+      onConfirm: () => {},
+    });
+
+    setTimeout(() => {
+      document.getElementById("modalBody").innerHTML = details;
+      document.getElementById("modalCancel").style.display = "none";
+    }, 10);
   }
 
   function escapeHtml(text) {
