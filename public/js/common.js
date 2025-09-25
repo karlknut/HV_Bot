@@ -304,6 +304,7 @@ class WS {
 class Modal {
   static show(options) {
     const overlay = document.getElementById("modalOverlay");
+    const container = document.getElementById(".modal-container");
     const icon = document.getElementById("modalIcon");
     const iconSymbol = document.getElementById("modalIconSymbol");
     const title = document.getElementById("modalTitle");
@@ -348,6 +349,15 @@ class Modal {
       overlay.classList.remove("show");
       if (options.onCancel) options.onCancel();
     });
+
+    const overlayClickHandler = (e) => {
+      if (e.targer === overlay) {
+        overlay.classList.remove("show");
+        if (options.onCancel) options.onCancel();
+      }
+    };
+
+    overlay.addEventListener("click", overlayClickHandler);
 
     // Show only confirm for alerts
     if (options.type === "alert") {

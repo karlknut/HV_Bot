@@ -776,17 +776,20 @@
     const gpu = gpuListings.find((g) => g.id == id);
     if (!gpu) return;
 
+    console.log("Viewing GPU details:", gpu);
+
+    // Build price details section
     let priceDetails = `
     <div style="margin-bottom: 1rem;">
-      <strong style="color: #3b82f6;">Price:</strong> 
+      <strong style="color: #3b82f6;">Main Price:</strong> 
       <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
         ${gpu.price}${escapeHtml(gpu.currency)}
       </span>
     </div>
   `;
 
-    // Add AH and OK prices if available
-    if (gpu.ah_price) {
+    // Add AH price if available
+    if (gpu.ah_price !== null && gpu.ah_price !== undefined) {
       priceDetails += `
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">AH Price:</strong> 
@@ -797,11 +800,12 @@
     `;
     }
 
-    if (gpu.ok_price) {
+    // Add OK price if available
+    if (gpu.ok_price !== null && gpu.ok_price !== undefined) {
       priceDetails += `
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">OK Price:</strong> 
-        <span style="color: #f59e0b; font-size: 1.2rem; font-weight: bold;">
+        <span style="color: #a855f7; font-size: 1.2rem; font-weight: bold;">
           ${gpu.ok_price} OK
         </span>
       </div>
@@ -816,7 +820,7 @@
       </div>
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Brand:</strong> 
-        <span style="color: #ccc;">${escapeHtml(gpu.brand)}</span>
+        <span style="color: #ccc;">${escapeHtml(gpu.brand || "Unknown")}</span>
       </div>
       ${priceDetails}
       <div style="margin-bottom: 1rem;">
@@ -825,7 +829,7 @@
       </div>
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Seller:</strong> 
-        <span style="color: #ccc;">${escapeHtml(gpu.author)}</span>
+        <span style="color: #ccc;">${escapeHtml(gpu.author || "Unknown")}</span>
       </div>
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Title:</strong> 

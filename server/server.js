@@ -167,29 +167,42 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
     const botManager = require("./bot-manager");
     const botStatus = botManager.getStatus(req.user.userId);
 
-    // Format run history properly
-    const formattedHistory = runHistory.map((run) => ({
-      date: run.date || run.run_date,
-      status: run.status,
-      botType: run.botType || (run.gpusFound !== undefined ? "gpu" : "forum"),
-      postsUpdated: run.postsUpdated || 0,
-      commentsAdded: run.commentsAdded || 0,
-      gpusFound: run.gpusFound || 0,
-      newGPUs: run.newGPUs || 0,
-      threadTitles: run.threadTitles || [],
-      error: run.error,
-      duration: run.duration || 0,
-    }));
+    // Ensure run history has proper data
+    const formattedHistory = (runHistory || []).map((run) => {
+      // Make sure we have a valid date
+      const runDate = run.date || run.run_date || new Date().toISOString();
+
+      // Determine bot type from the data
+      const isGPU =
+        run.botType === "gpu" ||
+        run.gpusFound !== undefined ||
+        run.gpusFound !== null;
+
+      return {
+        date: runDate,
+        status: run.status || "unknown",
+        botType: isGPU ? "gpu" : "forum",
+        postsUpdated: run.postsUpdated || 0,
+        commentsAdded: run.commentsAdded || 0,
+        gpusFound: run.gpusFound || 0,
+        newGPUs: run.newGPUs || 0,
+        duplicates: run.duplicates || 0,
+        pagesScanned: run.pagesScanned || 0,
+        threadTitles: run.threadTitles || [],
+        error: run.error || null,
+        duration: run.duration || 0,
+      };
+    });
 
     const responseData = {
-      totalRuns: stats.total_runs,
-      totalPostsUpdated: stats.total_posts_updated,
-      totalCommentsAdded: stats.total_comments_added,
+      totalRuns: stats.total_runs || 0,
+      totalPostsUpdated: stats.total_posts_updated || 0,
+      totalCommentsAdded: stats.total_comments_added || 0,
       lastRunDate: stats.last_run_date,
       lastRunStatus: stats.last_run_status,
       runHistory: formattedHistory,
-      isRunning: botStatus.isRunning,
-      currentStatus: botStatus.status,
+      isRunning: botStatus.isRunning || false,
+      currentStatus: botStatus.status || "idle",
     };
 
     res.json({ success: true, data: responseData });
@@ -531,7 +544,7 @@ app.post("/api/gpu/scan", authenticateToken, async (req, res) => {
       {
         maxPages: 10, // Scan up to 10 pages
         maxThreadsPerPage: 30, // Process up to 30 threads per page
-        headless: false, // Set to true for production
+        headless: true, // Set to true for production
       },
     );
 
