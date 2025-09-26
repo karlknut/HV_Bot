@@ -304,7 +304,6 @@ class WS {
 class Modal {
   static show(options) {
     const overlay = document.getElementById("modalOverlay");
-    const container = document.getElementById(".modal-container");
     const icon = document.getElementById("modalIcon");
     const iconSymbol = document.getElementById("modalIconSymbol");
     const title = document.getElementById("modalTitle");
@@ -339,7 +338,7 @@ class Modal {
     confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
     cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
 
-    // Add listeners
+    // Add button listeners
     newConfirm.addEventListener("click", () => {
       overlay.classList.remove("show");
       if (options.onConfirm) options.onConfirm();
@@ -350,14 +349,17 @@ class Modal {
       if (options.onCancel) options.onCancel();
     });
 
-    const overlayClickHandler = (e) => {
-      if (e.targer === overlay) {
+    // Remove any existing overlay click listeners
+    overlay.onclick = null;
+
+    // Add new overlay click listener
+    overlay.onclick = function (e) {
+      // Check if the click was directly on the overlay (not on modal content)
+      if (e.target === overlay) {
         overlay.classList.remove("show");
         if (options.onCancel) options.onCancel();
       }
     };
-
-    overlay.addEventListener("click", overlayClickHandler);
 
     // Show only confirm for alerts
     if (options.type === "alert") {
@@ -370,6 +372,7 @@ class Modal {
     overlay.classList.add("show");
   }
 
+  // Rest of the Modal methods remain the same
   static confirm(title, message, onConfirm, onCancel) {
     this.show({
       type: "confirm",
@@ -561,13 +564,41 @@ class UI {
   }
 
   static showRefreshIndicator(elementId = "refreshIndicator") {
-    const indicator =
-      document.getElementById(elementId) || this.createRefreshIndicator();
-    indicator.classList.add("show");
-    setTimeout(() => indicator.classList.remove("show"), 2000);
+    // Remove any existing indicator
+    let existing = document.getElementById(elementId);
+    if (existing) {
+      existing.remove();
+    }
+
+    // Create new indicator
+    const indicator = document.createElement("span");
+    indicator.id = elementId;
+    indicator.className = "refresh-indicator";
+    indicator.textContent = "✓ Updated";
+    document.body.appendChild(indicator);
+
+    // Trigger animation
+    setTimeout(() => {
+      indicator.classList.add("show");
+    }, 10);
+
+    // Remove after 2 seconds
+    setTimeout(() => {
+      indicator.classList.remove("show");
+      // Remove from DOM after transition
+      setTimeout(() => {
+        indicator.remove();
+      }, 300);
+    }, 2000);
   }
 
   static createRefreshIndicator() {
+    // Remove any existing indicator first
+    const existing = document.getElementById("refreshIndicator");
+    if (existing) {
+      existing.remove();
+    }
+
     const indicator = document.createElement("span");
     indicator.id = "refreshIndicator";
     indicator.className = "refresh-indicator";

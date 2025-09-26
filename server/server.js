@@ -750,7 +750,7 @@ app.get("/api/gpu/test-scrape", authenticateToken, async (req, res) => {
       {
         maxPages: 1, // Only first page
         maxThreadsPerPage: 5, // Only 5 threads
-        headless: false,
+        headless: true,
       },
     );
 

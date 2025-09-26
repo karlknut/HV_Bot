@@ -482,7 +482,7 @@
 
         // Determine bot type properly
         const isGPUScan = run.botType === "gpu" || run.gpusFound !== undefined;
-        const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
+        const botType = isGPUScan ? "GPU Tracker" : "Forum Bot";
         const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
 
         // Get the right values based on bot type
@@ -531,47 +531,128 @@
 
     const isGPUScan = run.botType === "gpu" || run.gpusFound !== undefined;
     const botType = isGPUScan ? "GPU Scanner" : "Forum Bot";
+    const statusColor =
+      run.status === "completed"
+        ? "#10b981"
+        : run.status === "error"
+          ? "#ef4444"
+          : "#f59e0b";
 
-    let details = `
+    let modalContent = `
     <div style="text-align: left;">
-      <p><strong>Date:</strong> ${displayDate}</p>
-      <p><strong>Bot Type:</strong> ${botType}</p>
-      <p><strong>Status:</strong> ${run.status || "unknown"}</p>
-      <p><strong>Duration:</strong> ${formatDuration(run.duration)}</p>
+      <div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 10px;">
+        <div style="margin-bottom: 0.75rem;">
+          <strong style="color: #3b82f6;">Date & Time:</strong>
+          <div style="color: #fff; font-size: 1.1rem; margin-top: 0.25rem;">
+            ${displayDate}
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 0.75rem;">
+          <strong style="color: #3b82f6;">Bot Type:</strong>
+          <div style="margin-top: 0.25rem;">
+            <span class="bot-type-indicator ${isGPUScan ? "bot-type-gpu" : "bot-type-forum"}" 
+                  style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 15px;">
+              ${botType}
+            </span>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 0.75rem;">
+          <strong style="color: #3b82f6;">Status:</strong>
+          <div style="margin-top: 0.25rem;">
+            <span style="color: ${statusColor}; font-weight: 600; font-size: 1.1rem;">
+              ${run.status ? run.status.charAt(0).toUpperCase() + run.status.slice(1) : "Unknown"}
+            </span>
+          </div>
+        </div>
+        
+        <div>
+          <strong style="color: #3b82f6;">Duration:</strong>
+          <div style="color: #fff; font-size: 1.1rem; margin-top: 0.25rem;">
+            ${formatDuration(run.duration)}
+          </div>
+        </div>
+      </div>
   `;
 
     if (isGPUScan) {
-      details += `
-      <p><strong>GPUs Found:</strong> ${run.gpusFound || 0}</p>
-      <p><strong>New GPUs:</strong> ${run.newGPUs || 0}</p>
-      <p><strong>Duplicates:</strong> ${run.duplicates || 0}</p>
-      <p><strong>Pages Scanned:</strong> ${run.pagesScanned || 0}</p>
+      modalContent += `
+      <div style="background: linear-gradient(135deg, rgba(147, 51, 234, 0.1) 0%, rgba(126, 34, 206, 0.05) 100%); 
+                  border: 1px solid rgba(147, 51, 234, 0.3); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+        <h4 style="color: #9333ea; margin-bottom: 0.75rem;">GPU Scanner Results</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <div>
+            <span style="color: #aaa;">GPUs Found:</span>
+            <span style="color: #10b981; font-weight: 600; margin-left: 0.5rem;">${run.gpusFound || 0}</span>
+          </div>
+          <div>
+            <span style="color: #aaa;">New GPUs:</span>
+            <span style="color: #3b82f6; font-weight: 600; margin-left: 0.5rem;">${run.newGPUs || 0}</span>
+          </div>
+          <div>
+            <span style="color: #aaa;">Duplicates:</span>
+            <span style="color: #f59e0b; font-weight: 600; margin-left: 0.5rem;">${run.duplicates || 0}</span>
+          </div>
+          <div>
+            <span style="color: #aaa;">Pages Scanned:</span>
+            <span style="color: #fff; font-weight: 600; margin-left: 0.5rem;">${run.pagesScanned || 0}</span>
+          </div>
+        </div>
+      </div>
     `;
     } else {
-      details += `
-      <p><strong>Posts Updated:</strong> ${run.postsUpdated || 0}</p>
-      <p><strong>Comments Added:</strong> ${run.commentsAdded || 0}</p>
+      modalContent += `
+      <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%); 
+                  border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+        <h4 style="color: #3b82f6; margin-bottom: 0.75rem;">Forum Bot Results</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <div>
+            <span style="color: #aaa;">Posts Updated:</span>
+            <span style="color: #10b981; font-weight: 600; margin-left: 0.5rem;">${run.postsUpdated || 0}</span>
+          </div>
+          <div>
+            <span style="color: #aaa;">Comments Added:</span>
+            <span style="color: #3b82f6; font-weight: 600; margin-left: 0.5rem;">${run.commentsAdded || 0}</span>
+          </div>
+        </div>
+      </div>
     `;
 
       if (run.threadTitles && run.threadTitles.length > 0) {
-        details += `
-        <p><strong>Threads Processed:</strong></p>
-        <ul style="margin-left: 20px; color: #ccc;">
-          ${run.threadTitles.map((title) => `<li>${escapeHtml(title)}</li>`).join("")}
-        </ul>
+        modalContent += `
+        <div style="background: rgba(0,0,0,0.2); border-radius: 10px; padding: 1rem;">
+          <h4 style="color: #3b82f6; margin-bottom: 0.75rem;">Threads Processed</h4>
+          <div style="max-height: 200px; overflow-y: auto;">
+            <ul style="margin: 0; padding-left: 20px; color: #ccc;">
+              ${run.threadTitles
+                .map(
+                  (title) =>
+                    `<li style="margin-bottom: 0.5rem;">${escapeHtml(title)}</li>`,
+                )
+                .join("")}
+            </ul>
+          </div>
+        </div>
       `;
       }
     }
 
     if (run.error) {
-      details += `<p style="color: #ef4444;"><strong>Error:</strong> ${run.error}</p>`;
+      modalContent += `
+      <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%); 
+                  border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 1rem; margin-top: 1rem;">
+        <h4 style="color: #ef4444; margin-bottom: 0.5rem;">⚠️ Error Details</h4>
+        <p style="color: #fca5a5; margin: 0;">${escapeHtml(run.error)}</p>
+      </div>
+    `;
     }
 
-    details += `</div>`;
+    modalContent += `</div>`;
 
     Modal.show({
-      type: "info",
-      title: "Run Details",
+      type: isGPUScan ? "info" : "success",
+      title: `${botType} Run Details`,
       message: "",
       confirmText: "Close",
       confirmClass: "modal-btn-primary",
@@ -579,7 +660,7 @@
     });
 
     setTimeout(() => {
-      document.getElementById("modalBody").innerHTML = details;
+      document.getElementById("modalBody").innerHTML = modalContent;
       document.getElementById("modalCancel").style.display = "none";
     }, 10);
   }

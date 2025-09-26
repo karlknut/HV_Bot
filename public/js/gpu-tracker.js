@@ -347,27 +347,33 @@
       return;
     }
 
-    // Enhanced table rendering with Multiple GPU support
+    // Enhanced table rendering with AH/OK price display
     tbody.innerHTML = pageListings
       .map((gpu) => {
-        const isMultiple = gpu.model === "Multiple" && gpu.multiple_gpus;
+        // Build price display
+        let priceDisplay = `${gpu.price || 0} ${escapeHtml(gpu.currency || "€")}`;
+
+        // Add AH/OK indicators if present
+        if (gpu.ah_price) {
+          priceDisplay += ` <span style="color: #f59e0b; font-size: 0.85em;">(AH: ${gpu.ah_price})</span>`;
+        }
+        if (gpu.ok_price) {
+          priceDisplay += ` <span style="color: #a855f7; font-size: 0.85em;">(OK: ${gpu.ok_price})</span>`;
+        }
 
         return `
         <tr class="gpu-row" onclick="viewGPUDetails('${gpu.id}')">
-          <td class="gpu-model">
-            ${escapeHtml(gpu.model)}
-            ${isMultiple ? `<span style="color: #f59e0b; font-size: 0.8em;">(${gpu.gpu_count} GPUs)</span>` : ""}
-          </td>
+          <td class="gpu-model">${escapeHtml(gpu.model)}</td>
           <td class="gpu-brand">${escapeHtml(gpu.brand || "Unknown")}</td>
-          <td class="gpu-price">${gpu.price || 0}</td>
+          <td class="gpu-price">${priceDisplay}</td>
           <td class="gpu-currency">${escapeHtml(gpu.currency || "€")}</td>
           <td class="gpu-title" title="${escapeHtml(gpu.title || "")}">${escapeHtml(truncate(gpu.title || "No title", 40))}</td>
           <td class="gpu-location">${escapeHtml(gpu.location || "Not specified")}</td>
           <td class="gpu-author">${escapeHtml(gpu.author || "Unknown")}</td>
           <td class="gpu-date">${formatDate(gpu.scraped_at)}</td>
           <td class="gpu-actions">
-            <button class="btn-small" onclick="event.stopPropagation(); viewGPUDetails('${gpu.id}')" title="${isMultiple ? "View All GPUs" : "View Details"}">
-              ${isMultiple ? "View All" : "View"}
+            <button class="btn-small" onclick="event.stopPropagation(); viewGPUDetails('${gpu.id}')" title="View Details">
+              View
             </button>
             <a href="${gpu.url}" target="_blank" class="btn-small" onclick="event.stopPropagation()">Forum</a>
           </td>
@@ -778,36 +784,59 @@
 
     console.log("Viewing GPU details:", gpu);
 
-    // Build price details section
-    let priceDetails = `
-    <div style="margin-bottom: 1rem;">
-      <strong style="color: #3b82f6;">Main Price:</strong> 
-      <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
-        ${gpu.price}${escapeHtml(gpu.currency)}
-      </span>
-    </div>
-  `;
+    // Build price details section based on available prices
+    let priceDetails = "";
 
-    // Add AH price if available
-    if (gpu.ah_price !== null && gpu.ah_price !== undefined) {
+    // Show main price (Euro or whatever the primary currency is)
+    if (gpu.currency === "€" || (!gpu.ah_price && !gpu.ok_price)) {
       priceDetails += `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">AH Price:</strong> 
-        <span style="color: #f59e0b; font-size: 1.2rem; font-weight: bold;">
-          ${gpu.ah_price} AH
+        <strong style="color: #3b82f6;">Price:</strong> 
+        <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
+          ${gpu.price}${escapeHtml(gpu.currency)}
         </span>
       </div>
     `;
     }
 
-    // Add OK price if available
-    if (gpu.ok_price !== null && gpu.ok_price !== undefined) {
+    // Show AH price if available
+    if (
+      gpu.ah_price !== null &&
+      gpu.ah_price !== undefined &&
+      gpu.ah_price !== 0
+    ) {
       priceDetails += `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">OK Price:</strong> 
-        <span style="color: #a855f7; font-size: 1.2rem; font-weight: bold;">
-          ${gpu.ok_price} OK
+        <strong style="color: #3b82f6;">AH:</strong> 
+        <span style="color: #f59e0b; font-size: 1.2rem; font-weight: bold;">
+          ${gpu.ah_price}
         </span>
+      </div>
+    `;
+    }
+
+    // Show OK price if available
+    if (
+      gpu.ok_price !== null &&
+      gpu.ok_price !== undefined &&
+      gpu.ok_price !== 0
+    ) {
+      priceDetails += `
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">OK:</strong> 
+        <span style="color: #a855f7; font-size: 1.2rem; font-weight: bold;">
+          ${gpu.ok_price}
+        </span>
+      </div>
+    `;
+    }
+
+    // If no price details were added, show a default
+    if (priceDetails === "") {
+      priceDetails = `
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Price:</strong> 
+        <span style="color: #999;">Not specified</span>
       </div>
     `;
     }

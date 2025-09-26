@@ -291,7 +291,6 @@ class GPUForumScraper {
           const titleLink = row.querySelector("span.topictitle a.topictitle");
           if (!titleLink) continue;
 
-          // Skip announcement
           if (titleLink.textContent.includes("Teadeanne")) continue;
 
           const topicTitleElement = row.querySelector("span.topictitle");
@@ -300,19 +299,16 @@ class GPUForumScraper {
           let isVideokaardid = false;
           let location = null;
 
-          // Check for Videokaardid text
           const fullText = topicTitleElement.textContent || "";
           if (fullText.includes("Videokaardid")) {
             isVideokaardid = true;
           }
 
-          // Look for specific span elements, avoiding the reply counter
           const allSpans = topicTitleElement.querySelectorAll("span");
 
-          allSpans.forEach((span, index) => {
+          allSpans.forEach((span) => {
             const text = span.textContent.trim();
 
-            // Skip if it has the hv_fcounter class (reply counter)
             if (span.classList.contains("hv_fcounter")) {
               return;
             }
@@ -320,10 +316,7 @@ class GPUForumScraper {
             if (text.includes("Videokaardid")) {
               isVideokaardid = true;
             } else if (text && text.length > 2 && text.length < 30) {
-              // Check if this is NOT a number (reply count)
               const isNumber = /^\d+$/.test(text);
-
-              // Check if it's not a class name or technical text
               const isTechnical =
                 text.includes("class") ||
                 text === "i" ||
@@ -331,17 +324,30 @@ class GPUForumScraper {
                 text.includes("{");
 
               if (!isNumber && !isTechnical && !text.includes("Videokaardid")) {
-                // This is likely a location
-                const cleanText = text.replace(/^Asukoht:?\s*/i, "").trim();
-                if (cleanText.length > 2) {
-                  // Prefer the 3rd child span if available (typical location position)
+                // Aggressive cleaning of location text
+                let cleanText = text
+                  .replace(/Asukoht[:：]\s*/gi, "") // Remove Asukoht with any colon
+                  .replace(/^[：:]\s*/, "") // Remove leading colons
+                  .replace(/^Asukoht\s*/i, "") // Remove Asukoht without colon
+                  .trim();
+
+                // Final check - if it still contains Asukoht, extract what comes after
+                if (cleanText.toLowerCase().includes("asukoht")) {
+                  const parts = cleanText.split(/asukoht[:：]?\s*/i);
+                  cleanText = parts[parts.length - 1].trim();
+                }
+
+                if (
+                  cleanText.length > 2 &&
+                  cleanText.length < 30 &&
+                  !cleanText.includes(":")
+                ) {
                   if (
                     span.parentElement.querySelector("span:nth-child(3)") ===
                     span
                   ) {
                     location = cleanText;
                   } else if (!location) {
-                    // Use this as fallback if no location found yet
                     location = cleanText;
                   }
                 }
@@ -349,7 +355,6 @@ class GPUForumScraper {
             }
           });
 
-          // Also check italic elements
           const italicElements = topicTitleElement.querySelectorAll("i");
           italicElements.forEach((elem) => {
             const text = elem.textContent.trim();
@@ -361,10 +366,24 @@ class GPUForumScraper {
               text.length > 2 &&
               text.length < 30
             ) {
-              // Fallback location from italic text
-              const cleanText = text.replace(/^Asukoht:?\s*/i, "").trim();
+              // Same aggressive cleaning for italic text
+              let cleanText = text
+                .replace(/Asukoht[:：]\s*/gi, "")
+                .replace(/^[：:]\s*/, "")
+                .replace(/^Asukoht\s*/i, "")
+                .trim();
+
+              if (cleanText.toLowerCase().includes("asukoht")) {
+                const parts = cleanText.split(/asukoht[:：]?\s*/i);
+                cleanText = parts[parts.length - 1].trim();
+              }
+
               const isNumber = /^\d+$/.test(cleanText);
-              if (!isNumber && cleanText.length > 2) {
+              if (
+                !isNumber &&
+                cleanText.length > 2 &&
+                !cleanText.includes(":")
+              ) {
                 location = cleanText;
               }
             }
