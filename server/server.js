@@ -900,6 +900,31 @@ app.get("/api/gpu/stats", authenticateToken, async (req, res) => {
   }
 });
 
+app.get("/api/stats/gpu-scan-count", authenticateToken, async (req, res) => {
+  try {
+    // Get total count of GPU scans without limit
+    const { count, error } = await db.supabase
+      .from("run_history")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", req.user.userId)
+      .or("bot_type.eq.gpu,gpus_found.not.is.null");
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      totalScans: count || 0,
+    });
+  } catch (error) {
+    console.error("GPU scan count error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      totalScans: 0,
+    });
+  }
+});
+
 // Get price history for a specific GPU model
 app.get(
   "/api/gpu/price-history/:model",

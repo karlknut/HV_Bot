@@ -784,20 +784,11 @@
 
     console.log("Viewing GPU details:", gpu);
 
+    // Get full model name with brand and variant
+    const fullModelName = gpu.full_model || gpu.model;
+
     // Build price details section based on available prices
     let priceDetails = "";
-
-    // Show main price (Euro or whatever the primary currency is)
-    if (gpu.currency === "€" || (!gpu.ah_price && !gpu.ok_price)) {
-      priceDetails += `
-      <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">Price:</strong> 
-        <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
-          ${gpu.price}${escapeHtml(gpu.currency)}
-        </span>
-      </div>
-    `;
-    }
 
     // Show AH price if available
     if (
@@ -807,15 +798,15 @@
     ) {
       priceDetails += `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">AH:</strong> 
+        <strong style="color: #3b82f6;">AH (Alghind):</strong> 
         <span style="color: #f59e0b; font-size: 1.2rem; font-weight: bold;">
-          ${gpu.ah_price}
+          ${gpu.ah_price}€
         </span>
       </div>
     `;
     }
 
-    // Show OK price if available
+    // Show OK price if available (includes H: format)
     if (
       gpu.ok_price !== null &&
       gpu.ok_price !== undefined &&
@@ -823,9 +814,21 @@
     ) {
       priceDetails += `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">OK:</strong> 
+        <strong style="color: #3b82f6;">OK/H (Ostukorvi Hind):</strong> 
         <span style="color: #a855f7; font-size: 1.2rem; font-weight: bold;">
-          ${gpu.ok_price}
+          ${gpu.ok_price}€
+        </span>
+      </div>
+    `;
+    }
+
+    // Show regular price only if no AH/OK prices
+    if (!gpu.ah_price && !gpu.ok_price && gpu.price) {
+      priceDetails += `
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Hind:</strong> 
+        <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
+          ${gpu.price}€
         </span>
       </div>
     `;
@@ -835,7 +838,7 @@
     if (priceDetails === "") {
       priceDetails = `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">Price:</strong> 
+        <strong style="color: #3b82f6;">Hind:</strong> 
         <span style="color: #999;">Not specified</span>
       </div>
     `;
@@ -845,12 +848,22 @@
     <div style="text-align: left;">
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Model:</strong> 
-        <span style="color: #fff; font-size: 1.2rem;">${escapeHtml(gpu.model)}</span>
+        <span style="color: #fff; font-size: 1.2rem;">${escapeHtml(fullModelName)}</span>
       </div>
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Brand:</strong> 
         <span style="color: #ccc;">${escapeHtml(gpu.brand || "Unknown")}</span>
       </div>
+      ${
+        gpu.variant
+          ? `
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Variant:</strong> 
+        <span style="color: #ccc;">${escapeHtml(gpu.variant)}</span>
+      </div>
+      `
+          : ""
+      }
       ${priceDetails}
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Location:</strong> 
@@ -868,6 +881,10 @@
       </div>
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Posted:</strong> 
+        <span style="color: #ccc;">${gpu.post_date ? formatDate(gpu.post_date) : "Unknown"}</span>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Scraped:</strong> 
         <span style="color: #ccc;">${new Date(gpu.scraped_at).toLocaleString()}</span>
       </div>
       <div style="margin-top: 1.5rem; text-align: center;">

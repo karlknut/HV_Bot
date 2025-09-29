@@ -1,4 +1,4 @@
-// public/js/status-enhanced.js - Fixed with proper run history and stats
+// public/js/status-enhanced.js - Fixed GPU scan count
 (function () {
   "use strict";
 
@@ -65,7 +65,6 @@
       changeCredsBtn.addEventListener("click", showChangeCredentialsModal);
     }
 
-    // Add update bot stats button handler
     const updateBotStatsBtn = document.getElementById("updateBotStats");
     if (updateBotStatsBtn) {
       updateBotStatsBtn.addEventListener("click", updateBotStats);
@@ -74,10 +73,7 @@
 
   async function updateBotStats() {
     Toast.info("Updating", "Refreshing bot statistics...", 1500);
-
-    // Recalculate stats from run history
     await refreshStats();
-
     Toast.success("Updated", "Bot statistics have been recalculated");
   }
 
@@ -212,7 +208,6 @@
       console.log("Stats API response:", result);
 
       if (result && result.success && result.data) {
-        // Store run history for modal
         runHistoryData = result.data.runHistory || [];
         updateStatsDisplay(result.data);
       } else {
@@ -239,6 +234,28 @@
 
   async function loadGPUStats() {
     try {
+      // Get total count of GPU scans from ALL run history (not limited to 50)
+      const totalScansResponse = await fetch("/api/stats/gpu-scan-count", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${Auth.getToken()}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      let totalGPUScans = 0;
+
+      if (totalScansResponse.ok) {
+        const scansResult = await totalScansResponse.json();
+        totalGPUScans = scansResult.totalScans || 0;
+      } else {
+        // Fallback: count from run history (limited data)
+        totalGPUScans = runHistoryData.filter(
+          (run) => run.botType === "gpu" || run.gpusFound !== undefined,
+        ).length;
+      }
+
+      // Get GPU listings
       const listingsResponse = await fetch("/api/gpu/listings?limit=1000", {
         method: "GET",
         headers: {
@@ -256,6 +273,7 @@
           : 0;
       }
 
+      // Get GPU stats
       const statsResponse = await fetch("/api/gpu/stats", {
         method: "GET",
         headers: {
@@ -282,6 +300,7 @@
         }
       }
 
+      // Update display elements
       const totalGPUsElement = document.getElementById("totalGPUsFound");
       const uniqueModelsElement = document.getElementById("uniqueGPUModels");
       const totalScansElement = document.getElementById("totalGPUScans");
@@ -296,10 +315,7 @@
       }
 
       if (totalScansElement) {
-        const gpuScans = runHistoryData.filter(
-          (run) => run.botType === "gpu" || run.gpusFound !== undefined,
-        ).length;
-        totalScansElement.textContent = gpuScans.toString();
+        totalScansElement.textContent = totalGPUScans.toString();
       }
 
       if (lastScanElement) {
@@ -385,7 +401,6 @@
   function updateStatsDisplay(stats) {
     console.log("Updating stats display with:", stats);
 
-    // Update basic stats
     const updates = {
       totalRuns: stats.totalRuns || 0,
       postsUpdated: stats.totalPostsUpdated || 0,
@@ -399,7 +414,6 @@
       }
     });
 
-    // Update last run
     const lastRunElement = document.getElementById("lastRun");
     if (lastRunElement) {
       if (stats.lastRunDate) {
@@ -414,10 +428,8 @@
       }
     }
 
-    // Update last run status (fix the "currently running" issue)
     const lastRunStatusElement = document.getElementById("lastRunStatus");
     if (lastRunStatusElement) {
-      // Only show "running" if bot is ACTUALLY running
       const actualStatus = stats.isRunning
         ? "running"
         : stats.lastRunStatus || "unknown";
@@ -434,7 +446,6 @@
       }
     }
 
-    // Calculate success rate from run history
     const successRateElement = document.getElementById("successRate");
     if (successRateElement) {
       const runHistory = stats.runHistory || [];
@@ -451,10 +462,7 @@
       }
     }
 
-    // Update bot status
     updateBotStatus(stats.isRunning === true);
-
-    // Update run history
     updateRunHistory(stats.runHistory || []);
   }
 
@@ -471,7 +479,6 @@
     tbody.innerHTML = history
       .slice(0, 20)
       .map((run, index) => {
-        // Properly format the date
         let displayDate = "Unknown";
         if (run.date) {
           const date = new Date(run.date);
@@ -480,12 +487,10 @@
           }
         }
 
-        // Determine bot type properly
         const isGPUScan = run.botType === "gpu" || run.gpusFound !== undefined;
         const botType = isGPUScan ? "GPU Tracker" : "Forum Bot";
         const botTypeClass = isGPUScan ? "bot-type-gpu" : "bot-type-forum";
 
-        // Get the right values based on bot type
         const postsOrGPUs = isGPUScan
           ? run.gpusFound || 0
           : run.postsUpdated || 0;
@@ -507,7 +512,6 @@
       })
       .join("");
 
-    // Add click handlers to rows
     const rows = tbody.querySelectorAll("tr[data-run-index]");
     rows.forEach((row) => {
       row.addEventListener("click", function () {
@@ -574,7 +578,7 @@
           </div>
         </div>
       </div>
-  `;
+    `;
 
     if (isGPUScan) {
       modalContent += `
@@ -665,6 +669,7 @@
     }, 10);
   }
 
+  // Helper functions remain the same
   function escapeHtml(text) {
     const div = document.createElement("div");
     div.textContent = text;

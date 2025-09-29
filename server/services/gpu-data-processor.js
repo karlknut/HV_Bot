@@ -22,12 +22,12 @@ class GPUDataProcessor {
     for (const listing of gpuListings) {
       try {
         // Check for duplicate based on URL (which contains thread ID)
-        const isDuplicate = await this.checkDuplicate(listing.url);
+        const isDuplicate = await this.checkDuplicate(listing.id);
 
         if (isDuplicate) {
           results.duplicates++;
           console.log(
-            `Duplicate found (skipping): ${listing.model} - ${listing.url}`,
+            `Duplicate found (skipping): ${listing.model} - ${listing.id}`,
           );
           continue;
         }
@@ -85,29 +85,24 @@ class GPUDataProcessor {
   /**
    * Check if listing already exists based on URL
    */
-  async checkDuplicate(url) {
+  async checkDuplicate(listingId) {
     try {
-      // Use Supabase to check if URL already exists
       const { data, error } = await this.db.supabase
         .from("gpu_listings")
         .select("id")
-        .eq("url", url)
+        .eq("id", listingId)
         .single();
 
-      // If we get data back, it's a duplicate
       if (data) {
         return true;
       }
 
-      // If error is "No rows found", it's not a duplicate
       if (error && error.code === "PGRST116") {
         return false;
       }
 
-      // For any other error, assume not duplicate to allow saving
       return false;
     } catch (error) {
-      // On error, assume not duplicate
       return false;
     }
   }
