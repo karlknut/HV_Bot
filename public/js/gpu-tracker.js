@@ -476,7 +476,7 @@
       lastScan: document.getElementById("lastScan"),
     };
 
-    // FIXED: Always update total listings
+    // Update total listings
     if (elements.totalListings) {
       elements.totalListings.textContent = totalListings;
     }
@@ -503,7 +503,7 @@
         elements.avgPrice.parentElement.style.display = "none";
       }
 
-      // FIXED: Calculate lowest price from all listings
+      // Calculate lowest price from all listings
       if (elements.lowestPrice) {
         const allPrices = gpuListings.map((g) => g.price).filter((p) => p > 0);
         if (allPrices.length > 0) {
@@ -517,21 +517,43 @@
 
     if (elements.totalModels) elements.totalModels.textContent = totalModels;
 
-    // FIXED: Update last scan time properly
+    // FIXED: Update last scan time properly with timezone handling
     if (elements.lastScan) {
       if (gpuListings.length > 0) {
-        const latestDate = gpuListings.reduce((latest, gpu) => {
-          const gpuDate = new Date(gpu.scraped_at);
-          return gpuDate > latest ? gpuDate : latest;
-        }, new Date(0));
+        // Find the most recent scraped_at date
+        const dates = gpuListings
+          .map((gpu) => {
+            // Try to parse the date, handling various formats
+            if (gpu.scraped_at) {
+              const date = new Date(gpu.scraped_at);
+              return isNaN(date.getTime()) ? null : date;
+            }
+            return null;
+          })
+          .filter((date) => date !== null);
 
-        if (latestDate > new Date(0)) {
+        if (dates.length > 0) {
+          const latestDate = dates.reduce((latest, date) =>
+            date > latest ? date : latest,
+          );
+
           elements.lastScan.textContent = formatTimeAgo(latestDate);
         } else {
           elements.lastScan.textContent = "Never";
         }
       } else {
-        elements.lastScan.textContent = "Never";
+        // Check if we just completed a scan
+        const scanCompleteTime = localStorage.getItem("lastGPUScanTime");
+        if (scanCompleteTime) {
+          const scanDate = new Date(scanCompleteTime);
+          if (!isNaN(scanDate.getTime())) {
+            elements.lastScan.textContent = formatTimeAgo(scanDate);
+          } else {
+            elements.lastScan.textContent = "Never";
+          }
+        } else {
+          elements.lastScan.textContent = "Never";
+        }
       }
     }
 
@@ -539,45 +561,51 @@
   }
 
   function formatTimeAgo(date) {
-    const seconds = Math.floor((new Date() - date) / 1000);
+    // Ensure we have a valid date object
+    const dateObj = typeof date === "string" ? new Date(date) : date;
 
-    if (seconds < 60) return "Just now";
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    return date.toLocaleDateString();
-  }
-
-  function updateModelStatsTable() {
-    const tbody = document.getElementById("modelStatsBody");
-    if (!tbody) return;
-
-    if (gpuStats.length === 0) {
-      tbody.innerHTML =
-        '<tr><td colspan="6" class="table-empty">No statistics available yet</td></tr>';
-      return;
+    if (!dateObj || isNaN(dateObj.getTime())) {
+      console.warn("Invalid date:", date);
+      return "Unknown";
     }
 
-    tbody.innerHTML = gpuStats
-      .slice(0, 5)
-      .map(
-        (stat) => `
-      <tr>
-        <td class="gpu-model">${escapeHtml(stat.model)}</td>
-        <td class="stat-count">${stat.listingCount || 0}</td>
-        <td class="stat-price">€${stat.avgPrice || 0}</td>
-        <td class="stat-price">€${stat.minPrice || 0}</td>
-        <td class="stat-price">€${stat.maxPrice || 0}</td>
-        <td class="gpu-actions">
-          <button class="btn-small" onclick="filterByModel('${escapeHtml(stat.model)}')">Filter</button>
-        </td>
-      </tr>
-    `,
-      )
-      .join("");
+    // Use current time in local timezone
+    const now = new Date();
+    const diffMs = now.getTime() - dateObj.getTime();
+    const diffSeconds = Math.floor(diffMs / 1000);
+
+    console.log("Time calculation:", {
+      now: now.toISOString(),
+      date: dateObj.toISOString(),
+      diffSeconds: diffSeconds,
+      diffMinutes: Math.floor(diffSeconds / 60),
+      diffHours: Math.floor(diffSeconds / 3600),
+    });
+
+    // Handle future dates (clock issues)
+    if (diffSeconds < 0) {
+      return "Just now";
+    }
+
+    // Format based on time difference
+    if (diffSeconds < 60) return "Just now";
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    if (diffDays < 30) {
+      const weeks = Math.floor(diffDays / 7);
+      return `${weeks}w ago`;
+    }
+
+    // For older dates, show the actual date
+    return dateObj.toLocaleDateString();
   }
 
   async function startGPUScan() {
@@ -613,6 +641,9 @@
           "Scan Complete",
           `Found ${data.totalFound} listings, saved ${data.saved} new GPUs`,
         );
+
+        // Store the scan completion time
+        localStorage.setItem("lastGPUScanTime", new Date().toISOString());
 
         await loadAllData();
       } else {
@@ -748,7 +779,40 @@
 
   function formatDate(dateString) {
     if (!dateString) return "Unknown";
-    return new Date(dateString).toLocaleDateString();
+
+    const date = new Date(dateString);
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      // Try to parse Estonian date format if it's not ISO
+      const estonianDate = parseEstonianDateFormat(dateString);
+      if (estonianDate) {
+        return estonianDate.toLocaleDateString();
+      }
+      return "Unknown";
+    }
+
+    // Format as local date
+    return date.toLocaleDateString();
+  }
+
+  function parseEstonianDateFormat(dateString) {
+    if (!dateString) return null;
+
+    // Try DD.MM.YYYY format
+    const ddmmyyyy = dateString.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+    if (ddmmyyyy) {
+      const day = parseInt(ddmmyyyy[1]);
+      const month = parseInt(ddmmyyyy[2]) - 1;
+      const year = parseInt(ddmmyyyy[3]);
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+
+    // Try other formats...
+    return null;
   }
 
   function handleLogout() {

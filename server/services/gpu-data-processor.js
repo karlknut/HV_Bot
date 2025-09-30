@@ -1,4 +1,4 @@
-// Fixed version with proper clear function
+// server/services/gpu-data-processor.js - Complete fix with no IDs
 class GPUDataProcessor {
   constructor(db) {
     this.db = db;
@@ -10,37 +10,6 @@ class GPUDataProcessor {
    * @param {string} userId - User who initiated the scan
    * @returns {Object} Processing results
    */
-
-  async saveGPUListing(listing) {
-    const { data, error } = await this.db.supabase
-      .from("gpu_listings")
-      .insert([
-        {
-          model: listing.model,
-          full_model: listing.full_model || listing.model, // Save full model
-          brand: listing.brand || this.extractBrand(listing.model),
-          variant: listing.variant || null,
-          price: listing.price,
-          currency: listing.currency,
-          ah_price: listing.ah_price || null,
-          ok_price: listing.ok_price || null,
-          title: listing.title,
-          url: listing.url,
-          author: listing.author,
-          location: listing.location,
-          post_date: listing.post_date || null,
-          source: listing.source || "forum",
-          scraped_at: listing.scraped_at || new Date().toISOString(),
-          user_id: listing.user_id,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  }
-
   async processAndSave(gpuListings, userId) {
     const results = {
       total: gpuListings.length,
@@ -52,40 +21,62 @@ class GPUDataProcessor {
 
     for (const listing of gpuListings) {
       try {
-        // Check for duplicate based on URL (which contains thread ID)
-        const isDuplicate = await this.checkDuplicate(listing.id);
+        // CRITICAL: Remove any ID field that might exist
+        const cleanListing = { ...listing };
+        delete cleanListing.id;
+        delete cleanListing.uniqueId;
+
+        // Check for duplicate based on URL and model
+        const isDuplicate = await this.checkDuplicate(
+          cleanListing.url,
+          cleanListing.model,
+        );
 
         if (isDuplicate) {
           results.duplicates++;
           console.log(
-            `Duplicate found (skipping): ${listing.model} - ${listing.id}`,
+            `Duplicate found (skipping): ${cleanListing.model} - ${cleanListing.url}`,
           );
           continue;
         }
 
-        // Enhance listing data
+        // Enhance listing data - explicitly without ID
         const enhancedListing = {
-          ...listing,
+          model: cleanListing.model,
+          full_model: cleanListing.full_model || cleanListing.model,
+          normalized_model:
+            cleanListing.normalized_model ||
+            cleanListing.model.toUpperCase().replace(/\s+/g, "_"),
+          brand: cleanListing.brand || this.detectBrand(cleanListing.model),
+          variant: cleanListing.variant || null,
+          price: cleanListing.price,
+          currency: cleanListing.currency,
+          ah_price: cleanListing.ah_price || null,
+          ok_price: cleanListing.ok_price || null,
+          title: cleanListing.title,
+          url: cleanListing.url,
+          author: cleanListing.author,
+          location: cleanListing.location || null,
+          forum_post_date: cleanListing.forum_post_date || null,
+          source: cleanListing.source || "forum",
+          scraped_at: cleanListing.scraped_at || new Date().toISOString(),
           user_id: userId,
-          brand: listing.brand || this.detectBrand(listing.model),
-          source: "forum",
-          location: listing.location || null,
         };
 
         // Save to database
-        const saved = await this.db.saveGPUListing(enhancedListing);
+        const saved = await this.saveGPUListingDirectly(enhancedListing);
 
         if (saved) {
           results.saved++;
           results.processed.push({
-            id: saved.id,
-            model: listing.model,
-            price: listing.price,
-            currency: listing.currency,
+            id: saved.id, // Use the database-generated ID
+            model: cleanListing.model,
+            price: cleanListing.price,
+            currency: cleanListing.currency,
           });
 
           console.log(
-            `✅ Saved NEW listing: ${listing.model} - ${listing.price}${listing.currency}`,
+            `✅ Saved NEW listing: ${cleanListing.model} - ${cleanListing.price}${cleanListing.currency}`,
           );
         }
       } catch (error) {
@@ -114,14 +105,71 @@ class GPUDataProcessor {
   }
 
   /**
-   * Check if listing already exists based on URL
+   * Save GPU listing directly without using db.saveGPUListing
    */
-  async checkDuplicate(listingId) {
+  async saveGPUListingDirectly(listing) {
     try {
-      const { data, error } = await this.db.supabase
+      const { supabase } = this.db;
+
+      console.log("Saving GPU listing (no ID):", {
+        model: listing.model,
+        url: listing.url,
+        price: listing.price,
+      });
+
+      const { data, error } = await supabase
+        .from("gpu_listings")
+        .insert([
+          {
+            // NO ID FIELD - let database generate it
+            model: listing.model,
+            full_model: listing.full_model,
+            normalized_model: listing.normalized_model,
+            brand: listing.brand,
+            variant: listing.variant,
+            price: listing.price,
+            currency: listing.currency,
+            ah_price: listing.ah_price,
+            ok_price: listing.ok_price,
+            title: listing.title,
+            url: listing.url,
+            author: listing.author,
+            location: listing.location,
+            source: listing.source,
+            forum_post_date: listing.forum_post_date,
+            scraped_at: listing.scraped_at,
+            user_id: listing.user_id,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Database insert error:", error);
+        throw error;
+      }
+
+      console.log("GPU listing saved with auto-generated ID:", data.id);
+      return data;
+    } catch (error) {
+      console.error("saveGPUListingDirectly error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if listing already exists based on URL and model
+   */
+  async checkDuplicate(url, model) {
+    try {
+      const { supabase } = this.db;
+
+      // Check if this exact listing already exists
+      const { data, error } = await supabase
         .from("gpu_listings")
         .select("id")
-        .eq("id", listingId)
+        .eq("url", url)
+        .eq("model", model)
         .single();
 
       if (data) {
@@ -129,24 +177,27 @@ class GPUDataProcessor {
       }
 
       if (error && error.code === "PGRST116") {
+        // No rows returned = not a duplicate
         return false;
       }
 
       return false;
     } catch (error) {
+      console.error("Duplicate check error:", error);
       return false;
     }
   }
 
   /**
-   * Clear all GPU listings from database - FIXED VERSION
+   * Clear all GPU listings from database
    */
   async clearAllListings() {
     try {
+      const { supabase } = this.db;
       console.log("Starting to clear all GPU listings...");
 
       // First, get count of listings to be deleted
-      const { count, error: countError } = await this.db.supabase
+      const { count, error: countError } = await supabase
         .from("gpu_listings")
         .select("*", { count: "exact", head: true });
 
@@ -162,11 +213,11 @@ class GPUDataProcessor {
         return true;
       }
 
-      // Delete all GPU listings using a condition that matches all rows
-      const { error } = await this.db.supabase
+      // Delete all GPU listings
+      const { error } = await supabase
         .from("gpu_listings")
         .delete()
-        .not("id", "is", null); // This condition matches all rows (id is never null)
+        .not("id", "is", null); // This matches all rows
 
       if (error) {
         console.error("Delete error:", error);
@@ -175,14 +226,13 @@ class GPUDataProcessor {
 
       // Also clear price history
       try {
-        const { error: historyError } = await this.db.supabase
+        const { error: historyError } = await supabase
           .from("gpu_price_history")
           .delete()
           .not("id", "is", null);
 
         if (historyError) {
           console.warn("Warning: Could not clear price history:", historyError);
-          // Don't throw here as the main operation succeeded
         } else {
           console.log("Price history also cleared");
         }
@@ -205,7 +255,9 @@ class GPUDataProcessor {
    */
   async getDuplicateStats() {
     try {
-      const { data, error } = await this.db.supabase
+      const { supabase } = this.db;
+
+      const { data, error } = await supabase
         .from("gpu_listings")
         .select("url, model, price, currency, id, scraped_at")
         .order("scraped_at", { ascending: false });
@@ -250,6 +302,7 @@ class GPUDataProcessor {
   async removeDuplicates() {
     try {
       const stats = await this.getDuplicateStats();
+      const { supabase } = this.db;
       let removed = 0;
 
       for (const dupGroup of stats.duplicates) {
@@ -260,7 +313,7 @@ class GPUDataProcessor {
 
         // Remove all except the first (oldest)
         for (let i = 1; i < sorted.length; i++) {
-          const { error } = await this.db.supabase
+          const { error } = await supabase
             .from("gpu_listings")
             .delete()
             .eq("id", sorted[i].id);
@@ -303,7 +356,7 @@ class GPUDataProcessor {
       console.log("Price history updated");
     } catch (error) {
       console.error("Failed to update price history:", error);
-      throw error;
+      // Don't throw, just log the error
     }
   }
 
