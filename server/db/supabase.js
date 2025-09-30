@@ -148,25 +148,67 @@ const db = {
   },
 
   // Bot Statistics
+  // Fixed getUserStats function in server/db/supabase.js
   async getUserStats(userId) {
-    const { data, error } = await supabase
-      .from("user_stats")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+    try {
+      // Add timeout and error handling
+      const { data, error } = await Promise.race([
+        this.supabase
+          .from("user_stats")
+          .select("*")
+          .eq("user_id", userId)
+          .single(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Database timeout")), 10000),
+        ),
+      ]);
 
-    if (error && error.code !== "PGRST116") throw error;
+      if (error) {
+        // Check if it's a "not found" error (PGRST116)
+        if (error.code === "PGRST116") {
+          // No stats exist yet, return default
+          return {
+            user_id: userId,
+            total_runs: 0,
+            total_posts_updated: 0,
+            total_comments_added: 0,
+            last_run_date: null,
+            last_run_status: "never_run",
+          };
+        }
 
-    return (
-      data || {
+        console.error("Error fetching user stats:", error);
+        throw error;
+      }
+
+      return (
+        data || {
+          user_id: userId,
+          total_runs: 0,
+          total_posts_updated: 0,
+          total_comments_added: 0,
+          last_run_date: null,
+          last_run_status: "never_run",
+        }
+      );
+    } catch (error) {
+      console.error("getUserStats error:", {
+        message: error.message,
+        details: error.stack,
+        hint: error.hint || "",
+        code: error.code || "",
+      });
+
+      // Return default stats instead of throwing
+      return {
         user_id: userId,
         total_runs: 0,
         total_posts_updated: 0,
         total_comments_added: 0,
         last_run_date: null,
         last_run_status: "never_run",
-      }
-    );
+      };
+    }
   },
 
   async updateUserStats(userId, stats) {
@@ -297,28 +339,57 @@ const db = {
   // =================== GPU TRACKING FUNCTIONS ===================
 
   async saveGPUListing(listing) {
-    const { data, error } = await supabase
-      .from("gpu_listings")
-      .insert([
-        {
-          model: listing.model,
-          brand: listing.brand || this.extractBrand(listing.model),
-          price: listing.price,
-          currency: listing.currency,
-          title: listing.title,
-          url: listing.url,
-          author: listing.author,
-          location: listing.location, // Include location
-          source: listing.source || "forum",
-          scraped_at: listing.scraped_at || new Date().toISOString(),
-          user_id: listing.user_id, // Track which user scraped this
-        },
-      ])
-      .select()
-      .single();
+    try {
+      console.log("Saving GPU listing:", {
+        model: listing.model,
+        full_model: listing.full_model,
+        brand: listing.brand,
+        variant: listing.variant,
+        ah_price: listing.ah_price,
+        ok_price: listing.ok_price,
+        forum_post_date: listing.forum_post_date,
+      });
 
-    if (error) throw error;
-    return data;
+      const { data, error } = await supabase
+        .from("gpu_listings")
+        .insert([
+          {
+            id: listing.id,
+            model: listing.model,
+            full_model: listing.full_model || null, // FIXED: Include full_model
+            normalized_model:
+              listing.normalized_model ||
+              listing.model.toUpperCase().replace(/\s+/g, "_"),
+            brand: listing.brand || this.extractBrand(listing.model),
+            variant: listing.variant || null, // FIXED: Include variant
+            price: listing.price,
+            currency: listing.currency,
+            ah_price: listing.ah_price || null, // FIXED: Save AH price
+            ok_price: listing.ok_price || null, // FIXED: Save OK price
+            title: listing.title,
+            url: listing.url,
+            author: listing.author,
+            location: listing.location,
+            source: listing.source || "forum",
+            forum_post_date: listing.forum_post_date || null, // FIXED: Use correct column name
+            scraped_at: listing.scraped_at || new Date().toISOString(),
+            user_id: listing.user_id,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error saving GPU listing:", error);
+        throw error;
+      }
+
+      console.log("GPU listing saved successfully:", data.id);
+      return data;
+    } catch (error) {
+      console.error("saveGPUListing error:", error);
+      throw error;
+    }
   },
 
   async getGPUListings(filters = {}) {

@@ -1,4 +1,4 @@
-// public/js/gpu-tracker.js - Enhanced version with Multiple GPUs support
+// public/js/gpu-tracker.js - Fixed version with auto-update and Type column
 (function () {
   "use strict";
 
@@ -11,6 +11,10 @@
   let sortOrder = "desc";
   let currentFilter = null;
   let filterApplied = false;
+
+  // Track if we're coming from another page
+  let lastPage = document.referrer;
+  let isInitialLoad = true;
 
   function init() {
     console.log("Enhanced GPU Tracker initializing...");
@@ -30,11 +34,41 @@
     setupEventListeners();
     setupPaginationControls();
 
+    // FIXED: Always load data on initialization
     console.log("Loading initial data...");
-    loadListings();
-    loadStats();
+    loadAllData();
+    isInitialLoad = false;
+
+    // FIXED: Only reload when navigating FROM dashboard or status page
+    window.addEventListener("pageshow", function (event) {
+      // Check if coming from another page on our site
+      const currentReferrer = document.referrer;
+      const isDashboard = currentReferrer.includes("/dashboard");
+      const isStatus = currentReferrer.includes("/status");
+
+      // Only refresh if coming from dashboard or status, not on F5 or tab switch
+      if (
+        !isInitialLoad &&
+        (isDashboard || isStatus) &&
+        event.persisted === false
+      ) {
+        console.log("Navigated from another page, refreshing data...");
+        loadAllData();
+      }
+    });
 
     WS.init(handleWebSocketMessage);
+  }
+
+  // FIXED: New function to load all data at once
+  async function loadAllData() {
+    try {
+      await Promise.all([loadListings(), loadStats()]);
+      console.log("All data loaded successfully");
+    } catch (error) {
+      console.error("Error loading data:", error);
+      Toast.error("Load Error", "Failed to load GPU data");
+    }
   }
 
   function setupUserDisplay(user) {
@@ -89,7 +123,6 @@
       filtersSection.appendChild(clearBtn);
     }
 
-    // Add quick clear button next to controls
     const controlsSection = document.querySelector(".controls-section");
     if (controlsSection) {
       let quickClearBtn = document.getElementById("quickClearBtn");
@@ -147,7 +180,6 @@
         );
       }
 
-      // Add event listeners
       document
         .getElementById("itemsPerPageSelect")
         ?.addEventListener("change", (e) => {
@@ -171,7 +203,6 @@
         }
       });
 
-      // Add same listeners for bottom controls
       document
         .querySelector("#paginationControlsBottom select")
         ?.addEventListener("change", (e) => {
@@ -214,8 +245,7 @@
         break;
       case "gpuScanCompleted":
         setTimeout(() => {
-          loadListings();
-          loadStats();
+          loadAllData();
         }, 1000);
         break;
     }
@@ -343,22 +373,31 @@
 
     if (pageListings.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="9" class="table-empty">No GPU listings found. Click "Deep Scan" to search the forum.</td></tr>';
+        '<tr><td colspan="10" class="table-empty">No GPU listings found. Click "Deep Scan" to search the forum.</td></tr>';
       return;
     }
 
-    // Enhanced table rendering with AH/OK price display
+    // FIXED: Enhanced table rendering with Type column and post date
     tbody.innerHTML = pageListings
       .map((gpu) => {
-        // Build price display
-        let priceDisplay = `${gpu.price || 0} ${escapeHtml(gpu.currency || "€")}`;
-
-        // Add AH/OK indicators if present
-        if (gpu.ah_price) {
-          priceDisplay += ` <span style="color: #f59e0b; font-size: 0.85em;">(AH: ${gpu.ah_price})</span>`;
+        // Determine price type for Type column
+        let priceType = "OK"; // Default
+        if (gpu.ah_price && gpu.ok_price) {
+          priceType = "AH + OK";
+        } else if (gpu.ah_price) {
+          priceType = "AH";
         }
-        if (gpu.ok_price) {
-          priceDisplay += ` <span style="color: #a855f7; font-size: 0.85em;">(OK: ${gpu.ok_price})</span>`;
+
+        // Build price display for Price column
+        let priceDisplay = "";
+        if (gpu.ah_price && gpu.ok_price) {
+          priceDisplay = `<span style="color: #f59e0b;">AH: ${gpu.ah_price}€</span><br><span style="color: #a855f7;">OK: ${gpu.ok_price}€</span>`;
+        } else if (gpu.ah_price) {
+          priceDisplay = `<span style="color: #f59e0b;">AH: ${gpu.ah_price}€</span>`;
+        } else if (gpu.ok_price) {
+          priceDisplay = `<span style="color: #a855f7;">OK: ${gpu.ok_price}€</span>`;
+        } else {
+          priceDisplay = `${gpu.price || 0} ${escapeHtml(gpu.currency || "€")}`;
         }
 
         return `
@@ -366,11 +405,11 @@
           <td class="gpu-model">${escapeHtml(gpu.model)}</td>
           <td class="gpu-brand">${escapeHtml(gpu.brand || "Unknown")}</td>
           <td class="gpu-price">${priceDisplay}</td>
-          <td class="gpu-currency">${escapeHtml(gpu.currency || "€")}</td>
+          <td class="gpu-currency" style="font-weight: 600; color: ${priceType.includes("AH") ? "#f59e0b" : "#a855f7"};">${priceType}</td>
           <td class="gpu-title" title="${escapeHtml(gpu.title || "")}">${escapeHtml(truncate(gpu.title || "No title", 40))}</td>
           <td class="gpu-location">${escapeHtml(gpu.location || "Not specified")}</td>
           <td class="gpu-author">${escapeHtml(gpu.author || "Unknown")}</td>
-          <td class="gpu-date">${formatDate(gpu.scraped_at)}</td>
+          <td class="gpu-date">${formatDate(gpu.forum_post_date || gpu.scraped_at)}</td>
           <td class="gpu-actions">
             <button class="btn-small" onclick="event.stopPropagation(); viewGPUDetails('${gpu.id}')" title="View Details">
               View
@@ -386,7 +425,6 @@
   }
 
   function updatePaginationInfo(startIndex, endIndex, totalItems, totalPages) {
-    // Update top controls
     document.getElementById("showingFrom").textContent =
       totalItems > 0 ? startIndex + 1 : 0;
     document.getElementById("showingTo").textContent = endIndex;
@@ -394,7 +432,6 @@
     document.getElementById("currentPageNum").textContent = currentPage;
     document.getElementById("totalPages").textContent = totalPages;
 
-    // Update bottom controls
     const bottomControls = document.getElementById("paginationControlsBottom");
     if (bottomControls) {
       const showingFromBottom = bottomControls.querySelector("#showingFrom");
@@ -412,7 +449,6 @@
       if (totalPagesBottom) totalPagesBottom.textContent = totalPages;
     }
 
-    // Enable/disable buttons
     document.getElementById("prevPageBtn").disabled = currentPage === 1;
     document.getElementById("nextPageBtn").disabled =
       currentPage === totalPages || totalPages === 0;
@@ -440,8 +476,10 @@
       lastScan: document.getElementById("lastScan"),
     };
 
-    if (elements.totalListings)
+    // FIXED: Always update total listings
+    if (elements.totalListings) {
       elements.totalListings.textContent = totalListings;
+    }
 
     // Only show average price when filtering by model
     if (filterApplied && currentFilter) {
@@ -464,6 +502,8 @@
       if (elements.avgPrice) {
         elements.avgPrice.parentElement.style.display = "none";
       }
+
+      // FIXED: Calculate lowest price from all listings
       if (elements.lowestPrice) {
         const allPrices = gpuListings.map((g) => g.price).filter((p) => p > 0);
         if (allPrices.length > 0) {
@@ -477,20 +517,22 @@
 
     if (elements.totalModels) elements.totalModels.textContent = totalModels;
 
-    // Update last scan time - Fixed to properly check for listings
-    if (elements.lastScan && gpuListings.length > 0) {
-      const latestDate = gpuListings.reduce((latest, gpu) => {
-        const gpuDate = new Date(gpu.scraped_at);
-        return gpuDate > latest ? gpuDate : latest;
-      }, new Date(0));
+    // FIXED: Update last scan time properly
+    if (elements.lastScan) {
+      if (gpuListings.length > 0) {
+        const latestDate = gpuListings.reduce((latest, gpu) => {
+          const gpuDate = new Date(gpu.scraped_at);
+          return gpuDate > latest ? gpuDate : latest;
+        }, new Date(0));
 
-      if (latestDate > new Date(0)) {
-        elements.lastScan.textContent = formatTimeAgo(latestDate);
+        if (latestDate > new Date(0)) {
+          elements.lastScan.textContent = formatTimeAgo(latestDate);
+        } else {
+          elements.lastScan.textContent = "Never";
+        }
       } else {
         elements.lastScan.textContent = "Never";
       }
-    } else if (elements.lastScan) {
-      elements.lastScan.textContent = "Never";
     }
 
     updateModelStatsTable();
@@ -572,8 +614,7 @@
           `Found ${data.totalFound} listings, saved ${data.saved} new GPUs`,
         );
 
-        await loadListings();
-        await loadStats();
+        await loadAllData();
       } else {
         Toast.error("Scan Failed", result.message || "Failed to scan forum");
       }
@@ -603,7 +644,6 @@
       filters.currency
     );
 
-    // Show/hide quick clear button
     const quickClearBtn = document.getElementById("quickClearBtn");
     if (quickClearBtn) {
       quickClearBtn.style.display = filterApplied ? "block" : "none";
@@ -667,7 +707,6 @@
     currentFilter = null;
     filterApplied = false;
 
-    // Hide quick clear button
     const quickClearBtn = document.getElementById("quickClearBtn");
     if (quickClearBtn) {
       quickClearBtn.style.display = "none";
@@ -727,27 +766,13 @@
     );
   }
 
-  // Helper function to detect brand (needed for multiple GPU modal)
-  function detectBrand(model) {
-    if (!model) return "Unknown";
-    const modelUpper = model.toUpperCase();
-    if (modelUpper.includes("RTX") || modelUpper.includes("GTX"))
-      return "NVIDIA";
-    if (modelUpper.includes("RX") || modelUpper.includes("RADEON"))
-      return "AMD";
-    if (modelUpper.includes("ARC")) return "Intel";
-    return "Unknown";
-  }
-
   // Global functions
   window.startGPUScan = startGPUScan;
-  window.detectBrand = detectBrand;
 
   window.refreshListings = function () {
     console.log("Refreshing listings...");
     Toast.info("Refreshing", "Loading latest listings...", 2000);
-    loadListings();
-    loadStats();
+    loadAllData();
   };
 
   window.toggleFilters = function () {
@@ -761,7 +786,6 @@
     currentFilter = model;
     document.getElementById("modelFilter").value = model;
 
-    // Show filters section if hidden
     const filtersSection = document.getElementById("filtersSection");
     filtersSection.style.display = "grid";
 
@@ -778,67 +802,73 @@
     applyFilters();
   };
 
+  // FIXED: Enhanced GPU details modal in ENGLISH with proper price display
   window.viewGPUDetails = function (id) {
     const gpu = gpuListings.find((g) => g.id == id);
     if (!gpu) return;
 
     console.log("Viewing GPU details:", gpu);
 
-    // Get full model name with brand and variant
-    const fullModelName = gpu.full_model || gpu.model;
+    // Get full model name (e.g., "ASUS ROG Astral GeForce RTX 5090")
+    const fullModelName =
+      gpu.full_model || `${gpu.brand || ""} ${gpu.model}`.trim();
 
-    // Build price details section based on available prices
+    // FIXED: Build price details with BOTH AH and OK displayed separately when available
     let priceDetails = "";
 
-    // Show AH price if available
-    if (
-      gpu.ah_price !== null &&
-      gpu.ah_price !== undefined &&
-      gpu.ah_price !== 0
-    ) {
-      priceDetails += `
+    if (gpu.ah_price && gpu.ok_price) {
+      // Show both prices
+      priceDetails = `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">AH (Alghind):</strong> 
-        <span style="color: #f59e0b; font-size: 1.2rem; font-weight: bold;">
+        <strong style="color: #3b82f6;">Prices:</strong><br>
+        <div style="margin-left: 1rem; margin-top: 0.5rem;">
+          <div style="margin-bottom: 0.5rem;">
+            <span style="color: #f59e0b; font-size: 1.2rem; font-weight: bold;">
+              AH: ${gpu.ah_price}€
+            </span>
+          </div>
+          <div>
+            <span style="color: #a855f7; font-size: 1.2rem; font-weight: bold;">
+              OK: ${gpu.ok_price}€
+            </span>
+          </div>
+        </div>
+      </div>
+    `;
+    } else if (gpu.ah_price) {
+      // Only AH price
+      priceDetails = `
+      <div style="margin-bottom: 1rem;">
+        <strong style="color: #3b82f6;">Price (AH):</strong> 
+        <span style="color: #f59e0b; font-size: 1.3rem; font-weight: bold;">
           ${gpu.ah_price}€
         </span>
       </div>
     `;
-    }
-
-    // Show OK price if available (includes H: format)
-    if (
-      gpu.ok_price !== null &&
-      gpu.ok_price !== undefined &&
-      gpu.ok_price !== 0
-    ) {
-      priceDetails += `
+    } else if (gpu.ok_price) {
+      // Only OK price
+      priceDetails = `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">OK/H (Ostukorvi Hind):</strong> 
-        <span style="color: #a855f7; font-size: 1.2rem; font-weight: bold;">
+        <strong style="color: #3b82f6;">Price (OK):</strong> 
+        <span style="color: #a855f7; font-size: 1.3rem; font-weight: bold;">
           ${gpu.ok_price}€
         </span>
       </div>
     `;
-    }
-
-    // Show regular price only if no AH/OK prices
-    if (!gpu.ah_price && !gpu.ok_price && gpu.price) {
-      priceDetails += `
+    } else if (gpu.price) {
+      // Default price (treat as OK)
+      priceDetails = `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">Hind:</strong> 
+        <strong style="color: #3b82f6;">Price:</strong> 
         <span style="color: #10b981; font-size: 1.3rem; font-weight: bold;">
           ${gpu.price}€
         </span>
       </div>
     `;
-    }
-
-    // If no price details were added, show a default
-    if (priceDetails === "") {
+    } else {
       priceDetails = `
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">Hind:</strong> 
+        <strong style="color: #3b82f6;">Price:</strong> 
         <span style="color: #999;">Not specified</span>
       </div>
     `;
@@ -851,7 +881,7 @@
         <span style="color: #fff; font-size: 1.2rem;">${escapeHtml(fullModelName)}</span>
       </div>
       <div style="margin-bottom: 1rem;">
-        <strong style="color: #3b82f6;">Brand:</strong> 
+        <strong style="color: #3b82f6;">Manufacturer:</strong> 
         <span style="color: #ccc;">${escapeHtml(gpu.brand || "Unknown")}</span>
       </div>
       ${
@@ -881,7 +911,7 @@
       </div>
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Posted:</strong> 
-        <span style="color: #ccc;">${gpu.post_date ? formatDate(gpu.post_date) : "Unknown"}</span>
+        <span style="color: #ccc;">${gpu.forum_post_date ? formatDate(gpu.forum_post_date) : "Unknown"}</span>
       </div>
       <div style="margin-bottom: 1rem;">
         <strong style="color: #3b82f6;">Scraped:</strong> 
@@ -908,18 +938,6 @@
       document.getElementById("modalBody").innerHTML = modalContent;
       document.getElementById("modalCancel").style.display = "none";
     }, 10);
-  };
-
-  // Helper function to detect brand (needed for multiple GPU modal)
-  window.detectBrand = function (model) {
-    if (!model) return "Unknown";
-    const modelUpper = model.toUpperCase();
-    if (modelUpper.includes("RTX") || modelUpper.includes("GTX"))
-      return "NVIDIA";
-    if (modelUpper.includes("RX") || modelUpper.includes("RADEON"))
-      return "AMD";
-    if (modelUpper.includes("ARC")) return "Intel";
-    return "Unknown";
   };
 
   window.checkDuplicates = async function () {
@@ -968,8 +986,7 @@
 
       if (result.success) {
         Toast.success("Duplicates Removed", result.message);
-        await loadListings();
-        await loadStats();
+        await loadAllData();
       } else {
         Toast.error("Failed", result.error || "Failed to remove duplicates");
       }
@@ -1002,8 +1019,7 @@
               "Database Cleared",
               "All GPU listings have been removed",
             );
-            await loadListings();
-            await loadStats();
+            await loadAllData();
           } else {
             Toast.error("Failed", result.error || "Failed to clear database");
           }

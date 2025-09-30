@@ -10,6 +10,37 @@ class GPUDataProcessor {
    * @param {string} userId - User who initiated the scan
    * @returns {Object} Processing results
    */
+
+  async saveGPUListing(listing) {
+    const { data, error } = await this.db.supabase
+      .from("gpu_listings")
+      .insert([
+        {
+          model: listing.model,
+          full_model: listing.full_model || listing.model, // Save full model
+          brand: listing.brand || this.extractBrand(listing.model),
+          variant: listing.variant || null,
+          price: listing.price,
+          currency: listing.currency,
+          ah_price: listing.ah_price || null,
+          ok_price: listing.ok_price || null,
+          title: listing.title,
+          url: listing.url,
+          author: listing.author,
+          location: listing.location,
+          post_date: listing.post_date || null,
+          source: listing.source || "forum",
+          scraped_at: listing.scraped_at || new Date().toISOString(),
+          user_id: listing.user_id,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
   async processAndSave(gpuListings, userId) {
     const results = {
       total: gpuListings.length,
