@@ -282,162 +282,245 @@ class GPUForumScraperEnhanced {
   // Enhanced GPU extraction with full model names
   extractAllGPUsWithFullDetails(text, title) {
     const gpuListings = [];
+    console.log(`Extracting GPUs from thread: ${title.substring(0, 50)}...`);
 
-    // First, try to extract from title
-    const titleGPU = this.extractGPUFromTitle(title);
+    // Clean and prepare text
+    const cleanText = text.replace(/\s+/g, " ").trim();
+    const lines = text.split(/[\n\r]+/);
 
-    // Comprehensive GPU patterns - ordered from most specific to least specific
+    // Track found GPUs to avoid duplicates
+    const foundGPUs = new Map();
+
+    // Comprehensive GPU patterns
     const gpuPatterns = [
-      // NVIDIA RTX 50 series
-      /(?:(\d+)x\s+)?(?:(ASUS|MSI|GIGABYTE|EVGA|ZOTAC|PNY|PALIT|GAINWARD|INNO3D|KFA2|GALAX)\s+)?(?:ROG\s+STRIX\s+|TUF\s+|GAMING\s+|VENTUS\s+|AERO\s+|AMP\s+|TRINITY\s+)?(GeForce\s+)?(RTX\s*50[789]0)(?:\s*Ti)?(?:\s*SUPER)?(?:\s*(\d+GB))?/gi,
+      // Pattern for "3x RTX 4070" or "2x RX 6700 XT"
+      /(\d+)\s*[xX]\s*(RTX|GTX|RX|ARC)\s*(\d{3,4})\s*(Ti|TI|SUPER|XT|XTX)?/gi,
 
-      // NVIDIA RTX 40 series
-      /(?:(\d+)x\s+)?(?:(ASUS|MSI|GIGABYTE|EVGA|ZOTAC|PNY|PALIT|GAINWARD|INNO3D|KFA2|GALAX)\s+)?(?:ROG\s+STRIX\s+|TUF\s+|GAMING\s+|VENTUS\s+|AERO\s+|AMP\s+|TRINITY\s+)?(GeForce\s+)?(RTX\s*40[6789]0)(?:\s*Ti)?(?:\s*SUPER)?(?:\s*(\d+GB))?/gi,
+      // Standard GPU patterns with optional brand
+      /(?:(ASUS|MSI|GIGABYTE|EVGA|ZOTAC|PNY|PALIT|SAPPHIRE|POWERCOLOR|XFX)\s+)?(?:ROG\s+STRIX\s+|TUF\s+|GAMING\s+)?(RTX|GTX|RX|ARC)\s*(\d{3,4})\s*(Ti|TI|SUPER|XT|XTX)?(?:\s+(\d+)GB)?/gi,
 
-      // NVIDIA RTX 30 series
-      /(?:(\d+)x\s+)?(?:(ASUS|MSI|GIGABYTE|EVGA|ZOTAC|PNY|PALIT|GAINWARD|INNO3D|KFA2|GALAX)\s+)?(?:ROG\s+STRIX\s+|TUF\s+|GAMING\s+|VENTUS\s+|AERO\s+|AMP\s+|TRINITY\s+)?(GeForce\s+)?(RTX\s*30[5678]0)(?:\s*Ti)?(?:\s*(\d+GB))?/gi,
-
-      // NVIDIA RTX 20 series
-      /(?:(\d+)x\s+)?(?:(ASUS|MSI|GIGABYTE|EVGA|ZOTAC|PNY|PALIT|GAINWARD)\s+)?(?:ROG\s+STRIX\s+|TUF\s+|GAMING\s+)?(GeForce\s+)?(RTX\s*20[678]0)(?:\s*Ti)?(?:\s*SUPER)?(?:\s*(\d+GB))?/gi,
-
-      // NVIDIA GTX series
-      /(?:(\d+)x\s+)?(?:(ASUS|MSI|GIGABYTE|EVGA|ZOTAC|PNY|PALIT|GAINWARD)\s+)?(?:ROG\s+STRIX\s+|TUF\s+|GAMING\s+)?(GeForce\s+)?(GTX\s*1[06][5678]0)(?:\s*Ti)?(?:\s*(\d+GB))?/gi,
-
-      // AMD RX 7000 series
-      /(?:(\d+)x\s+)?(?:(SAPPHIRE|POWERCOLOR|XFX|ASUS|MSI|GIGABYTE)\s+)?(?:NITRO\+?\s+|RED\s+DEVIL\s+|PULSE\s+)?(Radeon\s+)?(RX\s*7[89]00)(?:\s*XT)?(?:\s*XTX)?(?:\s*(\d+GB))?/gi,
-
-      // AMD RX 6000 series
-      /(?:(\d+)x\s+)?(?:(SAPPHIRE|POWERCOLOR|XFX|ASUS|MSI|GIGABYTE)\s+)?(?:NITRO\+?\s+|RED\s+DEVIL\s+|PULSE\s+)?(Radeon\s+)?(RX\s*6[4-9]00)(?:\s*XT)?(?:\s*(\d+GB))?/gi,
-
-      // Intel Arc
-      /(?:(\d+)x\s+)?(?:(INTEL|ASUS|MSI|GIGABYTE)\s+)?(ARC\s*A[37][578]0)(?:\s*(\d+GB))?/gi,
-
-      // Generic pattern with flexible spacing and formatting
-      /(RTX|GTX|RX|ARC)\s*([0-9]{3,4})\s*(Ti|TI|SUPER|XT|XTX)?/gi,
-
-      // Even more generic - just numbers that look like GPU models
-      /(?:video\s*kaart|gpu|graafika|graafikakaart|videokaart).*?(RTX|GTX|RX)\s*([0-9]{3,4})/gi,
+      // Just model numbers that look like GPUs
+      /(RTX|GTX|RX)\s*(\d{3,4})\s*(Ti|TI|SUPER|XT|XTX)?/gi,
     ];
 
-    // Process text line by line for better context
-    const lines = text.split(/[\n\r]+/);
-    const processedGPUs = new Set(); // Track what we've found to avoid duplicates
+    // Extract all GPU models first
+    const gpuModels = [];
 
-    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const line = lines[lineIndex];
-      const nextLine = lines[lineIndex + 1] || "";
-      const contextText = `${line} ${nextLine}`; // Look at current + next line for price
+    for (const pattern of gpuPatterns) {
+      const matches = [...cleanText.matchAll(pattern)];
 
-      // Try each pattern
-      for (const pattern of gpuPatterns) {
-        const matches = [...contextText.matchAll(pattern)];
+      for (const match of matches) {
+        let quantity = 1;
+        let model = "";
+        let brand = null;
+        let variant = null;
 
-        for (const match of matches) {
-          let model = "";
-          let brand = null;
-          let variant = null;
-          let quantity = 1;
+        // Check if this is a quantity pattern (e.g., "3x RTX 4070")
+        if (match[1] && !isNaN(parseInt(match[1])) && parseInt(match[1]) < 10) {
+          quantity = parseInt(match[1]);
 
-          // Extract based on what was captured
-          if (match[0]) {
-            // Clean up the full match to get the model
-            model = match[0]
-              .replace(/^\d+x\s*/i, "") // Remove quantity prefix
-              .replace(/\s+/g, " ")
-              .trim();
-
-            // Extract components
-            const brandMatch = model.match(
-              /(ASUS|MSI|GIGABYTE|EVGA|ZOTAC|PNY|PALIT|GAINWARD|INNO3D|KFA2|GALAX|SAPPHIRE|POWERCOLOR|XFX|INTEL)/i,
-            );
-            if (brandMatch) {
-              brand = brandMatch[1].toUpperCase();
-            }
-
-            // Extract core GPU model
-            const modelMatch = model.match(
-              /(RTX|GTX|RX|ARC)\s*([0-9]{3,4})\s*(Ti|TI|SUPER|XT|XTX)?/i,
-            );
-            if (modelMatch) {
-              model =
-                `${modelMatch[1].toUpperCase()} ${modelMatch[2]}${modelMatch[3] ? " " + modelMatch[3].toUpperCase() : ""}`.trim();
-            }
-
-            // Extract memory variant
-            const memoryMatch = match[0].match(/(\d+)\s*GB/i);
-            if (memoryMatch) {
-              variant = `${memoryMatch[1]}GB`;
-            }
-
-            // Extract quantity if specified
-            const qtyMatch = match[0].match(/^(\d+)x\s*/i);
-            if (qtyMatch) {
-              quantity = parseInt(qtyMatch[1]);
-            }
+          if (match[2] && match[3]) {
+            model = `${match[2]} ${match[3]}${match[4] ? " " + match[4] : ""}`
+              .trim()
+              .toUpperCase();
+          }
+        } else {
+          // Standard pattern
+          if (match[1] && isNaN(parseInt(match[1]))) {
+            brand = match[1].toUpperCase();
           }
 
-          // Skip if we've already processed this model
-          const gpuKey = `${model}_${brand}_${variant}`;
-          if (processedGPUs.has(gpuKey)) {
-            continue;
-          }
+          // Build model from components
+          let modelPrefix = match[2] || match[1];
+          let modelNumber = match[3] || match[2];
+          let modelSuffix = match[4] || match[3] || "";
 
-          // Look for price after GPU mention
-          const priceInfo = this.extractPriceFromContext(
-            contextText,
-            match.index,
-          );
-
-          if (model && priceInfo) {
-            processedGPUs.add(gpuKey);
-
-            for (let i = 0; i < quantity; i++) {
-              gpuListings.push({
-                model: model,
-                brand: brand || this.detectBrandEnhanced(model),
-                variant: variant,
-                ...priceInfo,
-              });
-            }
+          if (modelPrefix && modelNumber) {
+            model =
+              `${modelPrefix} ${modelNumber}${modelSuffix ? " " + modelSuffix : ""}`
+                .trim()
+                .toUpperCase();
           }
         }
-      }
-    }
 
-    // If we didn't find any GPUs with the patterns, but we have a GPU in the title
-    // and prices in the text, create listings
-    if (gpuListings.length === 0 && titleGPU) {
-      const prices = this.extractAllPricesFromText(text);
+        // Clean up model
+        model = model.replace(/\s+/g, " ").trim();
 
-      if (prices.length > 0) {
-        // Take the first valid price
-        const priceInfo = prices[0];
-        gpuListings.push({
-          model: titleGPU.model,
-          brand: titleGPU.brand || this.detectBrandEnhanced(titleGPU.model),
-          variant: titleGPU.variant,
-          ...priceInfo,
-        });
-      }
-    }
+        // Skip invalid models
+        if (!model || model.length < 5) continue;
+        if (!model.match(/(RTX|GTX|RX|ARC)\s*\d{3,4}/i)) continue;
 
-    // Final fallback: if title clearly indicates a GPU sale but we found nothing
-    if (gpuListings.length === 0) {
-      const fallbackGPU = this.extractGPUFromTitleFallback(title);
-      if (fallbackGPU) {
-        const prices = this.extractAllPricesFromText(text);
-        if (prices.length > 0) {
-          gpuListings.push({
-            model: fallbackGPU.model,
-            brand: fallbackGPU.brand,
-            variant: fallbackGPU.variant,
-            ...prices[0],
+        // Detect brand if not found
+        if (!brand) {
+          brand = this.detectBrandEnhanced(model);
+        }
+
+        // Check for memory variant
+        const memMatch = match[0].match(/(\d+)\s*GB/i);
+        if (memMatch) {
+          variant = `${memMatch[1]}GB`;
+        }
+
+        // Add to list with position
+        for (let i = 0; i < quantity; i++) {
+          gpuModels.push({
+            model: model,
+            brand: brand,
+            variant: variant,
+            position: match.index,
+            originalText: match[0],
           });
         }
       }
     }
 
+    // Look for prices in the text
+    const prices = this.extractAllPricesWithContext(text);
+
+    console.log(
+      `Found ${gpuModels.length} GPU models and ${prices.length} prices`,
+    );
+
+    // Match GPUs with prices
+    if (gpuModels.length > 0 && prices.length > 0) {
+      // If we have equal or more prices than GPUs, match them in order
+      if (prices.length >= gpuModels.length) {
+        for (let i = 0; i < gpuModels.length; i++) {
+          const gpu = gpuModels[i];
+          const price = prices[i];
+
+          gpuListings.push({
+            model: gpu.model,
+            brand: gpu.brand,
+            variant: gpu.variant,
+            price: price.price,
+            currency: price.currency || "€",
+            ah_price: price.ah_price || null,
+            ok_price: price.ok_price || null,
+          });
+        }
+      }
+      // If we have more GPUs than prices but all GPUs are the same model
+      else if (gpuModels.every((g) => g.model === gpuModels[0].model)) {
+        // All GPUs are the same, use the first price for all
+        const price = prices[0];
+        for (const gpu of gpuModels) {
+          gpuListings.push({
+            model: gpu.model,
+            brand: gpu.brand,
+            variant: gpu.variant,
+            price: price.price,
+            currency: price.currency || "€",
+            ah_price: price.ah_price || null,
+            ok_price: price.ok_price || null,
+          });
+        }
+      }
+      // Otherwise try to match by proximity
+      else {
+        for (const gpu of gpuModels) {
+          // Find the closest price after this GPU mention
+          const closestPrice = this.findClosestPrice(
+            gpu.position,
+            prices,
+            text.length,
+          );
+
+          if (closestPrice) {
+            gpuListings.push({
+              model: gpu.model,
+              brand: gpu.brand,
+              variant: gpu.variant,
+              price: closestPrice.price,
+              currency: closestPrice.currency || "€",
+              ah_price: closestPrice.ah_price || null,
+              ok_price: closestPrice.ok_price || null,
+            });
+          }
+        }
+      }
+    }
+    // If only one GPU model but multiple prices, might be selling multiple of the same
+    else if (gpuModels.length === 1 && prices.length > 1) {
+      const gpu = gpuModels[0];
+
+      // Check if title indicates multiple items (e.g., "3x RTX 4070")
+      const qtyMatch = title.match(/(\d+)\s*[xX]\s*(RTX|GTX|RX)/i);
+      if (qtyMatch && prices.length === parseInt(qtyMatch[1])) {
+        // Create listing for each price
+        for (const price of prices) {
+          gpuListings.push({
+            model: gpu.model,
+            brand: gpu.brand,
+            variant: gpu.variant,
+            price: price.price,
+            currency: price.currency || "€",
+            ah_price: price.ah_price || null,
+            ok_price: price.ok_price || null,
+          });
+        }
+      } else {
+        // Just use the first price
+        gpuListings.push({
+          model: gpu.model,
+          brand: gpu.brand,
+          variant: gpu.variant,
+          price: prices[0].price,
+          currency: prices[0].currency || "€",
+          ah_price: prices[0].ah_price || null,
+          ok_price: prices[0].ok_price || null,
+        });
+      }
+    }
+
+    // Log what we found
+    if (gpuListings.length > 0) {
+      console.log(`✅ Extracted ${gpuListings.length} GPU listings:`);
+      gpuListings.forEach((gpu, i) => {
+        console.log(`   ${i + 1}. ${gpu.model} - €${gpu.price}`);
+      });
+    } else {
+      console.log(`⚠️ No valid GPU listings extracted from thread`);
+    }
+
     return gpuListings;
+  }
+
+  findClosestPrice(gpuPosition, prices, textLength) {
+    if (prices.length === 0) return null;
+
+    // Look for price within 150 characters after GPU
+    const maxDistance = 150;
+    let closestPrice = null;
+    let minDistance = textLength;
+
+    for (const price of prices) {
+      // Price should come after GPU mention
+      if (price.position > gpuPosition) {
+        const distance = price.position - gpuPosition;
+
+        if (distance < maxDistance && distance < minDistance) {
+          minDistance = distance;
+          closestPrice = price;
+        }
+      }
+    }
+
+    // If no price found after, try before (within 50 chars)
+    if (!closestPrice) {
+      for (const price of prices) {
+        if (price.position < gpuPosition) {
+          const distance = gpuPosition - price.position;
+
+          if (distance < 50 && distance < minDistance) {
+            minDistance = distance;
+            closestPrice = price;
+          }
+        }
+      }
+    }
+
+    return closestPrice;
   }
 
   // Extract GPU from title with brand and variant
@@ -587,68 +670,127 @@ class GPUForumScraperEnhanced {
     return null;
   }
 
-  extractAllPricesFromText(text) {
-    const prices = [];
+  isPriceValid(price) {
+    // GPUs typically cost between 50 and 10000 euros
+    return price >= 50 && price <= 10000;
+  }
 
-    // Find all price patterns with their positions
+  extractAllPricesWithContext(text) {
+    const prices = [];
     const pricePatterns = [
-      { pattern: /AH[:\s]*(\d+).*?OK[:\s]*(\d+)/gi, type: "both" },
-      { pattern: /H[:\s]*(\d+)\s*(eur|€)?/gi, type: "ok" },
-      { pattern: /AH[:\s]*(\d+)/gi, type: "ah" },
-      { pattern: /OK[:\s]*(\d+)/gi, type: "ok" },
-      { pattern: /€\s*(\d+)/g, type: "euro" },
-      { pattern: /(\d+)\s*€/g, type: "euro" },
-      { pattern: /(\d+)\s*eur/gi, type: "euro" },
+      // "AH: 500 OK: 450" pattern
+      { regex: /AH[:\s]+(\d{3,4}).*?OK[:\s]+(\d{3,4})/gi, type: "both" },
+      // Individual AH price
+      { regex: /AH[:\s]+(\d{3,4})(?!\d)/gi, type: "ah" },
+      // Individual OK price
+      { regex: /OK[:\s]+(\d{3,4})(?!\d)/gi, type: "ok" },
+      // "Hind: 500" (Estonian for "price")
+      { regex: /[Hh]ind[:\s]+(\d{3,4})(?!\d)/gi, type: "ok" },
+      // "H: 500" shorthand
+      { regex: /\bH[:\s]+(\d{3,4})(?!\d)/gi, type: "ok" },
+      // Euro symbol before or after
+      { regex: /€\s*(\d{3,4})(?!\d)/g, type: "euro" },
+      { regex: /(\d{3,4})\s*€/g, type: "euro" },
+      { regex: /(\d{3,4})\s*[Ee][Uu][Rr](?!\w)/g, type: "euro" },
+      // Just numbers that look like prices (300-5000 range)
+      { regex: /\b(\d{3,4})\b/g, type: "number" },
     ];
 
-    for (const { pattern, type } of pricePatterns) {
-      const matches = [...text.matchAll(pattern)];
+    const foundPrices = new Set(); // Track unique prices
+
+    for (const { regex, type } of pricePatterns) {
+      const matches = [...text.matchAll(regex)];
+
       for (const match of matches) {
-        let priceInfo = null;
+        let priceData = null;
 
         if (type === "both") {
           const ahPrice = parseInt(match[1]);
           const okPrice = parseInt(match[2]);
-          if (
-            ahPrice >= 50 &&
-            ahPrice <= 5000 &&
-            okPrice >= 50 &&
-            okPrice <= 5000
-          ) {
-            priceInfo = {
-              price: ahPrice,
-              currency: "€",
-              position: match.index,
-              ah_price: ahPrice,
-              ok_price: okPrice,
-            };
+
+          if (this.isPriceValid(ahPrice) && this.isPriceValid(okPrice)) {
+            const key = `both_${ahPrice}_${okPrice}`;
+            if (!foundPrices.has(key)) {
+              foundPrices.add(key);
+              priceData = {
+                price: ahPrice, // Use AH as main price
+                currency: "€",
+                ah_price: ahPrice,
+                ok_price: okPrice,
+                position: match.index,
+                type: "both",
+              };
+            }
           }
         } else {
           const price = parseInt(match[1]);
-          if (price >= 50 && price <= 5000) {
-            priceInfo = {
-              price: price,
-              currency: "€",
-              position: match.index,
-            };
 
-            if (type === "ah") {
-              priceInfo.ah_price = price;
-            } else if (type === "ok") {
-              priceInfo.ok_price = price;
-            } else {
-              priceInfo.ok_price = price; // Default to OK
+          if (this.isPriceValid(price)) {
+            const key = `${type}_${price}`;
+
+            // For plain numbers, check context to see if it's really a price
+            if (type === "number") {
+              const contextBefore = text.substring(
+                Math.max(0, match.index - 20),
+                match.index,
+              );
+              const contextAfter = text.substring(
+                match.index + match[0].length,
+                Math.min(text.length, match.index + match[0].length + 20),
+              );
+
+              // Skip if it looks like a year, quantity, or model number
+              if (
+                contextBefore.match(/\d{1,2}\.\d{1,2}\./) || // Part of date
+                contextAfter.match(/^\s*(GB|gb|MHz|mhz|mm|cm|W|w)/) || // Unit
+                contextBefore.match(/(RTX|GTX|RX)\s*$/) || // Part of model number
+                (price > 2020 && price < 2030)
+              ) {
+                // Likely a year
+                continue;
+              }
+            }
+
+            if (!foundPrices.has(key)) {
+              foundPrices.add(key);
+              priceData = {
+                price: price,
+                currency: "€",
+                position: match.index,
+                type: type,
+              };
+
+              if (type === "ah") {
+                priceData.ah_price = price;
+              } else if (type === "ok" || type === "euro") {
+                priceData.ok_price = price;
+              }
             }
           }
         }
 
-        if (priceInfo) {
-          prices.push(priceInfo);
+        if (priceData) {
+          prices.push(priceData);
         }
       }
     }
 
-    return prices.sort((a, b) => a.position - b.position);
+    // Sort by position in text
+    prices.sort((a, b) => a.position - b.position);
+
+    // Remove duplicate prices at same position
+    const uniquePrices = [];
+    const seenPositions = new Set();
+
+    for (const price of prices) {
+      const posKey = `${Math.floor(price.position / 10)}_${price.price}`;
+      if (!seenPositions.has(posKey)) {
+        seenPositions.add(posKey);
+        uniquePrices.push(price);
+      }
+    }
+
+    return uniquePrices;
   }
 
   detectBrandEnhanced(model) {

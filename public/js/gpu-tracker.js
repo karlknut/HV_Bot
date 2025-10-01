@@ -63,11 +63,24 @@
   // FIXED: New function to load all data at once
   async function loadAllData() {
     try {
-      await Promise.all([loadListings(), loadStats()]);
+      console.log("Loading all GPU data...");
+
+      // Load listings and stats in parallel
+      const [listingsResult, statsResult] = await Promise.all([
+        loadListings(),
+        loadStats(),
+      ]);
+
       console.log("All data loaded successfully");
+
+      // Update the last scan time after data is loaded
+      updateLastScanTime();
+
+      return true;
     } catch (error) {
       console.error("Error loading data:", error);
       Toast.error("Load Error", "Failed to load GPU data");
+      return false;
     }
   }
 
@@ -318,8 +331,53 @@
     }
   }
 
+  function updateModelStatsTable() {
+    const tbody = document.getElementById("modelStatsBody");
+    if (!tbody) {
+      console.error("modelStatsBody element not found!");
+      return;
+    }
+
+    console.log(`Updating model stats table with ${gpuStats.length} models`);
+
+    if (!gpuStats || gpuStats.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="6" class="table-empty">No statistics available yet. Run a GPU scan to collect data.</td></tr>';
+      return;
+    }
+
+    // Sort by listing count and take top 5
+    const topModels = [...gpuStats]
+      .sort(
+        (a, b) =>
+          (b.listingCount || b.count || 0) - (a.listingCount || a.count || 0),
+      )
+      .slice(0, 5);
+
+    tbody.innerHTML = topModels
+      .map(
+        (stat) => `
+      <tr>
+        <td class="gpu-model">${escapeHtml(stat.model)}</td>
+        <td class="stat-count">${stat.listingCount || stat.count || 0}</td>
+        <td class="stat-price">€${stat.avgPrice || 0}</td>
+        <td class="stat-price">€${stat.minPrice || 0}</td>
+        <td class="stat-price">€${stat.maxPrice || 0}</td>
+        <td class="gpu-actions">
+          <button class="btn-small" onclick="filterByModel('${escapeHtml(stat.model)}')">Filter</button>
+        </td>
+      </tr>
+    `,
+      )
+      .join("");
+
+    console.log("Model stats table updated successfully");
+  }
+
   async function loadStats() {
     try {
+      console.log("Loading GPU statistics...");
+
       const response = await fetch("/api/gpu/stats", {
         method: "GET",
         headers: {
@@ -329,13 +387,25 @@
       });
 
       const result = await response.json();
+      console.log("Stats API response:", result);
 
       if (result.success && result.data) {
-        gpuStats = Array.isArray(result.data) ? result.data : [];
+        // Handle both nested and direct data structure
+        gpuStats = Array.isArray(result.data)
+          ? result.data
+          : result.data.stats || [];
+        console.log(`Loaded ${gpuStats.length} GPU model statistics`);
         updateStatsDisplay();
+        updateModelStatsTable();
+      } else {
+        console.error("Failed to load stats:", result);
+        gpuStats = [];
+        updateModelStatsTable(); // Still update table to show empty state
       }
     } catch (error) {
       console.error("Error loading stats:", error);
+      gpuStats = [];
+      updateModelStatsTable(); // Update table to show error state
     }
   }
 
@@ -481,7 +551,7 @@
       elements.totalListings.textContent = totalListings;
     }
 
-    // Only show average price when filtering by model
+    // Calculate and display prices
     if (filterApplied && currentFilter) {
       const prices = filteredListings.map((g) => g.price).filter((p) => p > 0);
       if (prices.length > 0) {
@@ -503,7 +573,6 @@
         elements.avgPrice.parentElement.style.display = "none";
       }
 
-      // Calculate lowest price from all listings
       if (elements.lowestPrice) {
         const allPrices = gpuListings.map((g) => g.price).filter((p) => p > 0);
         if (allPrices.length > 0) {
@@ -515,79 +584,71 @@
       }
     }
 
-    if (elements.totalModels) elements.totalModels.textContent = totalModels;
+    if (elements.totalModels) {
+      elements.totalModels.textContent = totalModels;
+    }
 
-    // FIXED: Update last scan time properly with timezone handling
+    // Fixed Last Scan time update
     if (elements.lastScan) {
-      if (gpuListings.length > 0) {
-        // Find the most recent scraped_at date
-        const dates = gpuListings
-          .map((gpu) => {
-            // Try to parse the date, handling various formats
-            if (gpu.scraped_at) {
-              const date = new Date(gpu.scraped_at);
-              return isNaN(date.getTime()) ? null : date;
-            }
-            return null;
-          })
-          .filter((date) => date !== null);
+      updateLastScanTime();
+    }
+  }
 
-        if (dates.length > 0) {
-          const latestDate = dates.reduce((latest, date) =>
-            date > latest ? date : latest,
-          );
+  function updateLastScanTime() {
+    const lastScanElement = document.getElementById("lastScan");
+    if (!lastScanElement) return;
 
-          elements.lastScan.textContent = formatTimeAgo(latestDate);
-        } else {
-          elements.lastScan.textContent = "Never";
-        }
-      } else {
-        // Check if we just completed a scan
-        const scanCompleteTime = localStorage.getItem("lastGPUScanTime");
-        if (scanCompleteTime) {
-          const scanDate = new Date(scanCompleteTime);
-          if (!isNaN(scanDate.getTime())) {
-            elements.lastScan.textContent = formatTimeAgo(scanDate);
-          } else {
-            elements.lastScan.textContent = "Never";
-          }
-        } else {
-          elements.lastScan.textContent = "Never";
+    // Check localStorage for recent scan
+    const lastScanTime = localStorage.getItem("lastGPUScanTime");
+    if (lastScanTime) {
+      const scanDate = new Date(lastScanTime);
+      if (!isNaN(scanDate.getTime())) {
+        // Check if scan was recent (within last hour)
+        const hourAgo = new Date(Date.now() - 3600000);
+        if (scanDate > hourAgo) {
+          lastScanElement.textContent = formatTimeAgo(scanDate);
+          return;
         }
       }
     }
 
-    updateModelStatsTable();
+    // Otherwise, get from listings
+    if (gpuListings.length > 0) {
+      const dates = gpuListings
+        .map((gpu) => {
+          if (gpu.scraped_at) {
+            const date = new Date(gpu.scraped_at);
+            return isNaN(date.getTime()) ? null : date;
+          }
+          return null;
+        })
+        .filter((date) => date !== null);
+
+      if (dates.length > 0) {
+        const latestDate = dates.reduce((latest, date) =>
+          date > latest ? date : latest,
+        );
+        lastScanElement.textContent = formatTimeAgo(latestDate);
+      } else {
+        lastScanElement.textContent = "Never";
+      }
+    } else {
+      lastScanElement.textContent = "Never";
+    }
   }
 
   function formatTimeAgo(date) {
-    // Ensure we have a valid date object
     const dateObj = typeof date === "string" ? new Date(date) : date;
 
     if (!dateObj || isNaN(dateObj.getTime())) {
-      console.warn("Invalid date:", date);
       return "Unknown";
     }
 
-    // Use current time in local timezone
     const now = new Date();
-    const diffMs = now.getTime() - dateObj.getTime();
+    const diffMs = now - dateObj;
     const diffSeconds = Math.floor(diffMs / 1000);
 
-    console.log("Time calculation:", {
-      now: now.toISOString(),
-      date: dateObj.toISOString(),
-      diffSeconds: diffSeconds,
-      diffMinutes: Math.floor(diffSeconds / 60),
-      diffHours: Math.floor(diffSeconds / 3600),
-    });
-
-    // Handle future dates (clock issues)
-    if (diffSeconds < 0) {
-      return "Just now";
-    }
-
-    // Format based on time difference
+    if (diffSeconds < 0) return "Just now";
     if (diffSeconds < 60) return "Just now";
 
     const diffMinutes = Math.floor(diffSeconds / 60);
@@ -599,12 +660,6 @@
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays < 7) return `${diffDays}d ago`;
 
-    if (diffDays < 30) {
-      const weeks = Math.floor(diffDays / 7);
-      return `${weeks}w ago`;
-    }
-
-    // For older dates, show the actual date
     return dateObj.toLocaleDateString();
   }
 
@@ -637,15 +692,24 @@
 
       if (result.success) {
         const data = result.data;
+
+        // Store the scan completion time
+        const scanTime = new Date().toISOString();
+        localStorage.setItem("lastGPUScanTime", scanTime);
+
         Toast.success(
           "Scan Complete",
           `Found ${data.totalFound} listings, saved ${data.saved} new GPUs`,
         );
 
-        // Store the scan completion time
-        localStorage.setItem("lastGPUScanTime", new Date().toISOString());
-
+        // Reload all data including stats
         await loadAllData();
+
+        // Force update the last scan display
+        const lastScanElement = document.getElementById("lastScan");
+        if (lastScanElement) {
+          lastScanElement.textContent = "Just now";
+        }
       } else {
         Toast.error("Scan Failed", result.message || "Failed to scan forum");
       }
